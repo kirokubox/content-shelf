@@ -1,6 +1,6 @@
 // コンテンツ棚のデータの形。仕様の正本：05_開発・Webアプリ/18_コンテンツ棚/181_コンテンツ棚_初期仕様.md
 
-export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "other"] as const;
+export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "live", "other"] as const;
 export type Medium = (typeof MEDIA)[number];
 
 /** 続きの数え方。メディアから決まる */

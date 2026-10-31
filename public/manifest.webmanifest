@@ -1,0 +1,18 @@
+{
+  "id": "/content-shelf/?app=content-shelf",
+  "name": "コンテンツ棚",
+  "short_name": "コンテンツ棚",
+  "description": "アニメ・マンガ・週刊誌の続きと、映画・小説の見た記録を積み上げる棚",
+  "start_url": "/content-shelf/",
+  "scope": "/content-shelf/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icons/content-shelf-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/content-shelf-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/content-shelf-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/content-shelf-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

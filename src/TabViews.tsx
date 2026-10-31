@@ -192,8 +192,9 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work)
   if (all.length === 0) return <Empty text="見た・読んだ記録はまだありません。映画・小説を登録するか、続きの作品を最後まで見ると、ここにたまります。" />;
   return (
     <>
+      <MediumChips media={media} value={medium} onChange={setMedium} />
       <div className="records-tools">
-        <MediumChips media={media} value={medium} onChange={setMedium} />
+        <p className="muted small count-line">{items.length}件</p>
         <div className="records-right">
           {years.length > 1 && (
             <select className="text-input year-select" value={year ?? ""} onChange={(e) => setYear(e.target.value || null)} aria-label="年">
@@ -210,7 +211,6 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work)
           </button>
         </div>
       </div>
-      <p className="muted small count-line">{items.length}件</p>
       {mode === "list" ? (
         <section className="card list-card">
           <ul className="list">

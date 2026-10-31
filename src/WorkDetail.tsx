@@ -78,7 +78,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="最新" value={latestLabel(work, today)} />
           <Row label="未消化" value={unconsumed !== null ? `${unconsumed}${UNIT_LABEL[kind]}` : null} />
           <Row label={kind === "issue" ? "発売" : "放送"} value={schedule ? `毎週${WEEKDAY_LABEL[weekdayOf(schedule.firstDate)]}曜日` : null} />
-          <Row label="休みの週" value={schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map(formatDateShort).join("、") : null} />
+          <Row label="休みの週" value={schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map((x) => formatDateShort(x)).join("、") : null} />
           <Row label="持っている巻" value={work.owned?.ranges.length ? `${rangesText(work.owned.ranges)}巻` : null} />
           <Row label="形" value={work.owned?.medium ? OWNED_LABEL[work.owned.medium] : null} />
           <Row label="置き場所" value={work.owned?.medium === "paper" && work.owned.place ? PLACE_LABEL[work.owned.place] : null} />

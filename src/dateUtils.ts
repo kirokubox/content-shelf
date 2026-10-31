@@ -43,10 +43,11 @@ export function formatDate(key: string, today: string = todayKey()): string {
   return key.slice(0, 4) === today.slice(0, 4) ? base : `${d.getFullYear()}年${base}`;
 }
 
-/** 画面用の短い形：10/12(月) */
-export function formatDateShort(key: string): string {
+/** 画面用の短い形：10/12(月)。今年以外は年を付ける（2025/10/12(日)） */
+export function formatDateShort(key: string, today: string = todayKey()): string {
   const d = parseDateKey(key);
-  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABEL[d.getDay()]})`;
+  const md = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABEL[d.getDay()]})`;
+  return key.slice(0, 4) === today.slice(0, 4) ? md : `${d.getFullYear()}/${md}`;
 }
 
 /** ISO の日時を端末の日付キーにする */

@@ -461,3 +461,10 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 .picked .muted { flex: 1; }
 .anilist-list .list-row { align-items: flex-start; }
 .setting-row:disabled { opacity: 0.5; }
+
+/* 記録タブ：件数と年・表示の切り替えを、絞り込みの下の段に */
+.records-tools { justify-content: space-between; margin-top: calc(-1 * var(--kb-space-2)); }
+.records-tools .count-line { margin: 0; }
+
+/* 縦に並ぶ中身は縮ませない（長い一覧のとき、絞り込みの帯が潰れて消えていた） */
+.content > * { flex-shrink: 0; }

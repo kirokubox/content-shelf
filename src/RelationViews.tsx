@@ -14,7 +14,8 @@ function lastDateOf(data: DataSet, workId: string): string | null {
 }
 
 function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void }) {
-  const sorted = [...works].sort((a, b) => MEDIA.indexOf(a.medium) - MEDIA.indexOf(b.medium) || a.title.localeCompare(b.title, "ja"));
+  // 楽しんだ日の新しい順（記録が無いものは最後に種類・題名の順）
+  const sorted = [...works].sort((a, b) => (lastDateOf(data, b.id) ?? "").localeCompare(lastDateOf(data, a.id) ?? "") || MEDIA.indexOf(a.medium) - MEDIA.indexOf(b.medium) || a.title.localeCompare(b.title, "ja"));
   return (
     <ul className="list">
       {sorted.map((w) => {

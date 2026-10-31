@@ -1,9 +1,10 @@
 // 保存：IndexedDB（家計簿と同じ方式。仕様181 §6.1）。画面は全件をメモリに持ち、変更をここへ書き込む。
 import { DB_NAME, DB_VERSION, STORES } from "./constants.js";
-import type { DataSet, Franchise, Log, Work } from "./types.js";
+import { normalizeData } from "./dataOps.js";
+import type { DataSet, Franchise, Log, Person, Work } from "./types.js";
 
 type StoreName = (typeof STORES)[number];
-type RecordOf<S extends StoreName> = S extends "works" ? Work : S extends "logs" ? Log : Franchise;
+type RecordOf<S extends StoreName> = S extends "works" ? Work : S extends "logs" ? Log : S extends "people" ? Person : Franchise;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -55,8 +56,8 @@ function getAll<S extends StoreName>(db: IDBDatabase, name: S): Promise<RecordOf
 
 export async function loadAll(): Promise<DataSet> {
   const db = await openDb();
-  const [franchises, works, logs] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs")]);
-  return { franchises, works, logs };
+  const [franchises, works, logs, people] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs"), getAll(db, "people")]);
+  return normalizeData({ franchises, works, logs, people });
 }
 
 /** 変更分をまとめて書く（1つのトランザクション） */

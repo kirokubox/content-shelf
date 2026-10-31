@@ -86,6 +86,10 @@ export interface Work extends Base {
   completedAt: string | null;
   /** 最後に操作した日時（続きの並び順） */
   touchedAt: string;
+  /** 出演・アーティストなど、この作品・公演に関わる人物（段階3） */
+  personIds: string[];
+  /** LIVE・フェスのセットリスト（任意） */
+  setlist: string;
 }
 
 /** progress＝続きを1つ進めた記録、view＝見た・読んだ・参加した記録（映画・小説など） */
@@ -110,10 +114,18 @@ export interface Log extends Base {
   source: string;
 }
 
+/** 人物（俳優・女優・アーティストなど）。手で登録する（仕様181 §2） */
+export interface Person extends Base {
+  name: string;
+  kana: string;
+  memo: string;
+}
+
 export interface DataSet {
   franchises: Franchise[];
   works: Work[];
   logs: Log[];
+  people: Person[];
 }
 
 export interface BackupFile extends DataSet {

@@ -6,6 +6,7 @@ import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogSheet } from "./LogSheet";
 import { progressKindOf, stepForward, withAutoStatus } from "./progressLogic";
+import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
 import { loadAll, putRecords, replaceAll, requestPersist } from "./storage";
@@ -24,7 +25,9 @@ type Overlay =
   | { kind: "settings" }
   | { kind: "detail"; workId: string }
   | { kind: "editor"; workId: string | null; medium: Medium }
-  | { kind: "pickMedium" };
+  | { kind: "pickMedium" }
+  | { kind: "franchise"; id: string }
+  | { kind: "person"; id: string };
 
 type SheetState = { workId: string; log: Log | null; newKind: Log["kind"] } | null;
 
@@ -168,7 +171,49 @@ export default function App() {
 
       {stack.map((o, i) => {
         const key = `${o.kind}-${i}`;
-        if (o.kind === "search") return <SearchView key={key} data={data} onBack={pop} onOpen={handlers.onOpen} />;
+        if (o.kind === "search") return <SearchView key={key} data={data} onBack={pop} onOpen={handlers.onOpen} onOpenPerson={(p) => push({ kind: "person", id: p.id })} onOpenFranchise={(f) => push({ kind: "franchise", id: f.id })} />;
+        if (o.kind === "franchise") {
+          const f = data.franchises.find((x) => x.id === o.id && x.deletedAt === null);
+          if (!f) return null;
+          return (
+            <FranchiseView
+              key={key}
+              data={data}
+              franchise={f}
+              onBack={pop}
+              onOpen={handlers.onOpen}
+              onRename={(title) => commit({ franchises: [{ ...f, title, updatedAt: nowIso() }] })}
+              onDelete={() => {
+                const now = nowIso();
+                const works = data.works.filter((w) => w.franchiseId === f.id).map((w) => ({ ...w, franchiseId: null, updatedAt: now }));
+                commit({ franchises: [{ ...f, deletedAt: now, updatedAt: now }], works });
+                pop();
+                showToast("親作品を消しました（作品は残っています）");
+              }}
+            />
+          );
+        }
+        if (o.kind === "person") {
+          const p = data.people.find((x) => x.id === o.id && x.deletedAt === null);
+          if (!p) return null;
+          return (
+            <PersonView
+              key={key}
+              data={data}
+              person={p}
+              onBack={pop}
+              onOpen={handlers.onOpen}
+              onRename={(name) => commit({ people: [{ ...p, name, updatedAt: nowIso() }] })}
+              onDelete={() => {
+                const now = nowIso();
+                const works = data.works.filter((w) => w.personIds.includes(p.id)).map((w) => ({ ...w, personIds: w.personIds.filter((x) => x !== p.id), updatedAt: now }));
+                commit({ people: [{ ...p, deletedAt: now, updatedAt: now }], works });
+                pop();
+                showToast("人物を消しました（作品は残っています）");
+              }}
+            />
+          );
+        }
         if (o.kind === "settings")
           return (
             <SettingsView
@@ -213,9 +258,10 @@ export default function App() {
               work={w}
               initialMedium={o.medium ?? defaultMedium}
               today={today}
+              data={data}
               onCancel={pop}
-              onSave={(work, firstLog) => {
-                commit({ works: [work], logs: firstLog ? [firstLog] : [] });
+              onSave={(work, firstLog, created) => {
+                commit({ works: [work], logs: firstLog ? [firstLog] : [], franchises: created.franchises, people: created.people });
                 pop();
                 showToast(w ? "保存しました" : `${work.title}を登録しました`);
               }}
@@ -229,6 +275,10 @@ export default function App() {
             key={key}
             work={w}
             logs={data.logs.filter((l) => l.workId === w.id && l.deletedAt === null)}
+            franchise={w.franchiseId ? data.franchises.find((f) => f.id === w.franchiseId && f.deletedAt === null) ?? null : null}
+            people={w.personIds.map((id) => data.people.find((p) => p.id === id && p.deletedAt === null)).filter((p): p is NonNullable<typeof p> => !!p)}
+            onOpenFranchise={(f) => push({ kind: "franchise", id: f.id })}
+            onOpenPerson={(p) => push({ kind: "person", id: p.id })}
             today={today}
             onBack={pop}
             onEdit={() => push({ kind: "editor", workId: w.id, medium: w.medium })}

@@ -8,7 +8,7 @@ const NOW = "2026-10-31T03:00:00.000Z";
 
 function sample(): DataSet {
   const movie = { ...emptyWork("movie", NOW), title: "映画" };
-  return { franchises: [], works: [movie], logs: [newLog({ workId: movie.id, kind: "view", date: "2026-10-28", note: "泣いた" }, NOW), newLog({ workId: movie.id, kind: "view", date: "2026-10-30" }, NOW)] };
+  return { franchises: [], people: [], works: [movie], logs: [newLog({ workId: movie.id, kind: "view", date: "2026-10-28", note: "泣いた" }, NOW), newLog({ workId: movie.id, kind: "view", date: "2026-10-30" }, NOW)] };
 }
 
 test("保存したバックアップをそのまま読み戻せる", () => {

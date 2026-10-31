@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, WEEKDAY_LABEL } from "./constants";
+import { MEDIUM_LABEL, STATUS_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
 import { formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { progressKindOf, withAutoStatus } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
-import type { Log, Medium, OwnedMedium, PaperPlace, VolumeRange, Work, WorkStatus } from "./types";
+import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
+import type { DataSet, Franchise, Log, Medium, OwnedMedium, PaperPlace, Person, VolumeRange, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 import { emptyWork, newLog } from "./workFactory";
 
@@ -52,11 +53,13 @@ interface Props {
   work: Work | null;
   initialMedium: Medium;
   today: string;
+  /** 親作品・人物の候補と名前の解決に使う */
+  data: DataSet;
   onCancel: () => void;
-  onSave: (work: Work, firstLog: Log | null) => void;
+  onSave: (work: Work, firstLog: Log | null, created: { franchises: Franchise[]; people: Person[] }) => void;
 }
 
-export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Props) {
+export function WorkEditor({ work, initialMedium, today, data, onCancel, onSave }: Props) {
   const isNew = work === null;
   // 週刊誌は登録したらすぐ毎週数えたいので、発売日の欄を最初から出す
   const withMagazineSchedule = (x: Work): Work => (x.medium === "magazine" && !x.schedule ? { ...x, schedule: { firstDate: today, firstNumber: 1, skipDates: [] } } : x);
@@ -74,6 +77,14 @@ export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Pro
   const [viewRating, setViewRating] = useState<number | null>(null);
   const [viewPlace, setViewPlace] = useState("");
   const [error, setError] = useState("");
+  const [franchiseText, setFranchiseText] = useState(() => (work?.franchiseId ? data.franchises.find((f) => f.id === work.franchiseId)?.title ?? "" : ""));
+  const [people, setPeople] = useState<string[]>(() => (work ? personNames(data, work.personIds) : []));
+  const [personDraft, setPersonDraft] = useState("");
+  const addPerson = () => {
+    const n = personDraft.trim();
+    if (n && !people.includes(n)) setPeople([...people, n]);
+    setPersonDraft("");
+  };
 
   const set = (patch: Partial<Work>) => setW((cur) => ({ ...cur, ...patch }));
   const changeMedium = (m: Medium) =>
@@ -105,8 +116,13 @@ export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Pro
       ranges = parsed;
     }
     const now = nowIso();
+    const fr = resolveFranchise(data.franchises, franchiseText, now);
+    const pp = resolvePeople(data.people, personDraft.trim() ? [...people, personDraft] : people, now);
     let next: Work = {
       ...w,
+      franchiseId: fr.id,
+      personIds: pp.ids,
+      setlist: w.medium === "live" ? w.setlist.trim() : w.setlist,
       title: w.title.trim(),
       kana: w.kana.trim(),
       seasonLabel: w.seasonLabel.trim(),
@@ -127,11 +143,11 @@ export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Pro
       firstLog = newLog({ workId: next.id, kind: "view", date: viewDate, note: viewNote.trim(), rating: viewRating, place: viewPlace.trim() }, now);
       next = { ...next, status: "done", completedAt: next.completedAt ?? now };
     }
-    onSave(next, firstLog);
+    onSave(next, firstLog, { franchises: fr.created, people: pp.created });
   };
 
   const statusChoices: WorkStatus[] = kind === "none" ? ["done", "wish"] : ["active", "wish", "paused", "done"];
-  const statusLabel = (s: WorkStatus) => (kind === "none" ? (s === "done" ? "見た・読んだ" : "見たい・読みたい") : s === "done" ? "見終わった" : STATUS_LABEL[s]);
+  const statusLabel = (s: WorkStatus) => (kind === "none" ? (s === "done" ? doneWord(w.medium) : wishWord(w.medium)) : s === "done" ? "見終わった" : STATUS_LABEL[s]);
 
   return (
     <Screen
@@ -316,7 +332,7 @@ export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Pro
       {isNew && kind === "none" && w.status !== "wish" && (
         <div className="form card">
           <label className="field">
-            <span className="field-label">見た・読んだ日</span>
+            <span className="field-label">{doneWord(w.medium)}日</span>
             <input className="text-input" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} />
           </label>
           <label className="field">
@@ -333,6 +349,49 @@ export function WorkEditor({ work, initialMedium, today, onCancel, onSave }: Pro
           </label>
         </div>
       )}
+
+      <div className="form card">
+        <label className="field">
+          <span className="field-label">親作品・シリーズ（任意）</span>
+          <input className="text-input" list="franchise-list" value={franchiseText} onChange={(e) => setFranchiseText(e.target.value)} placeholder="同じ原作のアニメ・マンガ・映画をまとめる名前" />
+          <datalist id="franchise-list">
+            {data.franchises.filter((f) => f.deletedAt === null).map((f) => <option key={f.id} value={f.title} />)}
+          </datalist>
+        </label>
+        <div className="field">
+          <span className="field-label">{w.medium === "live" ? "出演者・アーティスト（任意）" : "人物（任意。俳優・声優・作者など）"}</span>
+          {people.length > 0 && (
+            <div className="chips">
+              {people.map((n) => (
+                <button key={n} type="button" className="chip on" aria-label={`${n}を外す`} onClick={() => setPeople(people.filter((x) => x !== n))}>
+                  {n} <Icon name="close" size={14} />
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="inline-add">
+            <input
+              className="text-input"
+              list="person-list"
+              value={personDraft}
+              onChange={(e) => setPersonDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
+              placeholder="名前"
+              aria-label="人物の名前"
+            />
+            <button type="button" className="secondary-btn" disabled={!personDraft.trim()} onClick={addPerson}>追加</button>
+          </div>
+          <datalist id="person-list">
+            {data.people.filter((p) => p.deletedAt === null).map((p) => <option key={p.id} value={p.name} />)}
+          </datalist>
+        </div>
+        {w.medium === "live" && (
+          <label className="field">
+            <span className="field-label">セットリスト（任意）</span>
+            <textarea className="text-input note-input" rows={5} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="1曲ずつ改行" />
+          </label>
+        )}
+      </div>
 
       <div className="form card">
         <label className="field">

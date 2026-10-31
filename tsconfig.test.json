@@ -20,6 +20,8 @@
     "src/searchLogic.ts",
     "src/workFactory.ts",
     "src/dataOps.ts",
+    "src/linkLogic.ts",
+    "src/markdownExport.ts",
     "tests/*.ts"
   ]
 }

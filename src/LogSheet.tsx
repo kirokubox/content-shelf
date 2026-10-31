@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BottomSheet } from "./BottomSheet";
+import { doneWord } from "./constants";
 import { isDateKey, nowIso } from "./dateUtils";
 import { progressKindOf } from "./progressLogic";
 import { Stars } from "./Screen";
@@ -41,7 +42,7 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
     onSave({ ...base, date, position: showPosition ? pos : base.position, note: note.trim(), rating, place: place.trim(), updatedAt: now });
   };
 
-  const title = log ? "記録を編集" : isProgress ? `${work.title}：日付を選んで記録` : "見た・読んだ記録を追加";
+  const title = log ? "記録を編集" : isProgress ? `${work.title}：日付を選んで記録` : `${doneWord(work.medium)}記録を追加`;
   return (
     <BottomSheet title={title} onClose={onClose}>
       <div className="form">

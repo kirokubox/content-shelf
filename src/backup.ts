@@ -1,10 +1,11 @@
 // バックアップの保存・検証・追加の差分。画面の言葉は「バックアップを保存／バックアップから戻す／バックアップから追加」
 import { isDateKey } from "./dateUtils.js";
 import { MEDIA, WORK_STATUSES } from "./types.js";
-import type { BackupFile, DataSet, Franchise, Log, Work } from "./types.js";
+import { normalizeData } from "./dataOps.js";
+import type { BackupFile, DataSet, Franchise, Log, Person, Work } from "./types.js";
 
 export function buildBackup(data: DataSet, exportedAt: string): BackupFile {
-  return { app: "content-shelf", version: 1, exportedAt, franchises: data.franchises, works: data.works, logs: data.logs };
+  return { app: "content-shelf", version: 1, exportedAt, franchises: data.franchises, works: data.works, logs: data.logs, people: data.people };
 }
 
 export function backupFileName(today: string): string {
@@ -44,6 +45,10 @@ function checkLog(r: unknown): r is Log {
   return isStr(r.workId) && (r.kind === "progress" || r.kind === "view") && isDateKey(r.date) && isNumOrNull(r.position) && isStr(r.note);
 }
 
+function checkPerson(r: unknown): r is Person {
+  return isObj(r) && checkBase(r) && isStr(r.name);
+}
+
 function checkFranchise(r: unknown): r is Franchise {
   return isObj(r) && checkBase(r) && isStr(r.title);
 }
@@ -68,7 +73,12 @@ export function parseBackup(text: string): ParseResult {
   if (badLog >= 0) return { ok: false, error: `記録の${badLog + 1}件目の形が正しくありません` };
   const badFr = franchises.findIndex((f) => !checkFranchise(f));
   if (badFr >= 0) return { ok: false, error: `親作品の${badFr + 1}件目の形が正しくありません` };
-  return { ok: true, data: { franchises, works, logs } as DataSet, exportedAt: isStr(json.exportedAt) ? json.exportedAt : "" };
+  // people は段階3で足した。古いバックアップには無いので、無ければ空
+  const people = json.people === undefined ? [] : json.people;
+  if (!Array.isArray(people)) return { ok: false, error: "バックアップの中身が足りません" };
+  const badP = people.findIndex((p) => !checkPerson(p));
+  if (badP >= 0) return { ok: false, error: `人物の${badP + 1}件目の形が正しくありません` };
+  return { ok: true, data: normalizeData({ franchises, works, logs, people } as DataSet), exportedAt: isStr(json.exportedAt) ? json.exportedAt : "" };
 }
 
 export interface MergePlan {
@@ -86,6 +96,7 @@ export function planMerge(current: DataSet, incoming: DataSet): MergePlan {
     franchises: pick(current.franchises, incoming.franchises),
     works: pick(current.works, incoming.works),
     logs: pick(current.logs, incoming.logs),
+    people: pick(current.people, incoming.people),
   };
   return {
     add,
@@ -93,6 +104,7 @@ export function planMerge(current: DataSet, incoming: DataSet): MergePlan {
       { label: "作品", incoming: incoming.works.length, added: add.works.length, skipped: incoming.works.length - add.works.length },
       { label: "記録", incoming: incoming.logs.length, added: add.logs.length, skipped: incoming.logs.length - add.logs.length },
       { label: "親作品", incoming: incoming.franchises.length, added: add.franchises.length, skipped: incoming.franchises.length - add.franchises.length },
+      { label: "人物", incoming: incoming.people.length, added: add.people.length, skipped: incoming.people.length - add.people.length },
     ],
   };
 }

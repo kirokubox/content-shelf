@@ -444,3 +444,11 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 /* お知らせは右下の＋に重ならないよう、その上に出す */
 .toast { bottom: calc(var(--kb-tab-h) + 56px + var(--kb-space-6) + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: var(--kb-space-3); }
 .toast-action { flex: none; border: 0; background: transparent; color: #d9c8f0; font-weight: 700; min-height: 36px; padding: 0 var(--kb-space-2); }
+
+/* 段階3：親作品・人物・セットリスト */
+.link-btn { border: 0; background: transparent; padding: 0; color: var(--kb-accent-strong); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.detail-people { margin-top: var(--kb-space-3); }
+.setlist { margin-top: var(--kb-space-3); }
+.setlist ol { margin: var(--kb-space-2) 0 0; padding-left: 1.6em; line-height: 1.7; font-size: var(--kb-fs-m); }
+
+.chips .chip { display: inline-flex; align-items: center; gap: 4px; }

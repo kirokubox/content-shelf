@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, UNIT_LABEL, WEEKDAY_LABEL } from "./constants";
+import { MEDIUM_LABEL, STATUS_LABEL, UNIT_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
 import { formatDate, formatDateShort, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { latestLabel, positionLabel, progressKindOf, unconsumedCount } from "./progressLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
-import type { Log, Work, WorkStatus } from "./types";
+import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesText } from "./WorkEditor";
 
 const OWNED_LABEL = { paper: "紙", kindle: "Kindle", jump_plus: "ジャンプ＋" } as const;
@@ -13,6 +13,10 @@ const PLACE_LABEL = { home: "自宅", parents_home: "実家", both: "自宅と�
 interface Props {
   work: Work;
   logs: Log[];
+  franchise: Franchise | null;
+  people: Person[];
+  onOpenFranchise: (f: Franchise) => void;
+  onOpenPerson: (p: Person) => void;
   today: string;
   onBack: () => void;
   onEdit: () => void;
@@ -33,7 +37,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function WorkDetail({ work, logs, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete }: Props) {
+export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete }: Props) {
   const [menu, setMenu] = useState(false);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
@@ -44,14 +48,14 @@ export function WorkDetail({ work, logs, today, onBack, onEdit, onStep, onAddLog
     if (work.status === "active") statusItems.push({ label: "休止にする", onClick: () => onSetStatus("paused") });
     if (work.status !== "done") statusItems.push({ label: "最後まで見た・読んだ（記録へ）", onClick: () => onSetStatus("done") });
   } else {
-    if (work.status === "wish") statusItems.push({ label: "見た・読んだにする", onClick: () => onSetStatus("done") });
-    else statusItems.push({ label: "見たい・読みたいに戻す", onClick: () => onSetStatus("wish") });
+    if (work.status === "wish") statusItems.push({ label: `${doneWord(work.medium)}にする`, onClick: () => onSetStatus("done") });
+    else statusItems.push({ label: `${wishWord(work.medium)}に戻す`, onClick: () => onSetStatus("wish") });
   }
   if (work.status !== "wish" && kind !== "none") statusItems.push({ label: "見たい・読みたいにする", onClick: () => onSetStatus("wish") });
   statusItems.push({ label: "作品を削除", danger: true, onClick: onDelete });
 
   const schedule = work.schedule;
-  const statusText = kind === "none" ? (work.status === "wish" ? "見たい・読みたい" : "見た・読んだ") : work.status === "done" ? "最後まで見た・読んだ" : STATUS_LABEL[work.status];
+  const statusText = kind === "none" ? (work.status === "wish" ? wishWord(work.medium) : doneWord(work.medium)) : work.status === "done" ? "最後まで見た・読んだ" : STATUS_LABEL[work.status];
   return (
     <Screen
       title={work.title}
@@ -81,7 +85,21 @@ export function WorkDetail({ work, logs, today, onBack, onEdit, onStep, onAddLog
           <Row label="版" value={work.edition} />
           <Row label="記録へ移った日" value={work.status === "done" && work.completedAt ? formatDate(isoToDateKey(work.completedAt), today) : null} />
           <Row label="読み仮名" value={work.kana} />
+          <Row label="親作品" value={franchise ? <button type="button" className="link-btn" onClick={() => onOpenFranchise(franchise)}>{franchise.title}</button> : null} />
         </dl>
+        {people.length > 0 && (
+          <div className="chips detail-people" aria-label={work.medium === "live" ? "出演者" : "人物"}>
+            {people.map((p) => (
+              <button key={p.id} type="button" className="chip" onClick={() => onOpenPerson(p)}>{p.name}</button>
+            ))}
+          </div>
+        )}
+        {work.setlist && (
+          <div className="setlist">
+            <span className="field-label">セットリスト</span>
+            <ol>{work.setlist.split(/\n+/).filter((x) => x.trim()).map((x, i) => <li key={i}>{x}</li>)}</ol>
+          </div>
+        )}
         {work.memo && <p className="memo-text">{work.memo}</p>}
         {work.legacyNote && <p className="muted small">旧アプリのメモ：{work.legacyNote}</p>}
         <div className="actions">
@@ -96,7 +114,7 @@ export function WorkDetail({ work, logs, today, onBack, onEdit, onStep, onAddLog
             </button>
           )}
           <button type="button" className={kind === "none" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
-            {kind === "none" ? "見た・読んだ記録を追加" : "感想を残す"}
+            {kind === "none" ? `${doneWord(work.medium)}記録を追加` : "感想を残す"}
           </button>
         </div>
       </section>

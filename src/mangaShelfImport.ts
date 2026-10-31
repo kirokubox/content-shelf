@@ -74,6 +74,8 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     legacyNote: s.legacyNote ?? "",
     completedAt: status === "done" ? s.finishedAt ?? updated : null,
     touchedAt: updated,
+    personIds: [],
+    setlist: "",
   };
 }
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL } from "./constants";
+import { MEDIUM_LABEL, STATUS_LABEL, doneWord } from "./constants";
 import { formatDate, formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { Stars } from "./Screen";
@@ -65,7 +65,7 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
           </span>
           <span className="list-sub">
             <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
-            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || "見た・読んだ" : "最後まで見た・読んだ"}
+            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : "最後まで見た・読んだ"}
           </span>
           {log?.note && <span className="list-sub wrap note-excerpt">{log.note}</span>}
         </span>

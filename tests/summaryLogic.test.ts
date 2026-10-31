@@ -14,7 +14,7 @@ test("同じ映画を2回見たら、作品は1・回数は2", () => {
     newLog({ workId: anime.id, kind: "progress", date: "2026-10-20", position: 1 }, NOW),
     newLog({ workId: anime.id, kind: "progress", date: "2026-09-20", position: 2 }, NOW),
   ];
-  const data = { franchises: [], works: [movie, anime], logs };
+  const data = { franchises: [], people: [], works: [movie, anime], logs };
   const month = summarize(data, "month", "2026-10-31");
   assert.deepEqual(month.find((r) => r.medium === "movie"), { medium: "movie", works: 1, count: 2 });
   assert.deepEqual(month.find((r) => r.medium === "anime"), { medium: "anime", works: 1, count: 1 });
@@ -27,5 +27,5 @@ test("同じ映画を2回見たら、作品は1・回数は2", () => {
 test("削除した記録・作品は数えない", () => {
   const movie = { ...emptyWork("movie", NOW), title: "映画" };
   const log = { ...newLog({ workId: movie.id, kind: "view", date: "2026-10-03" }, NOW), deletedAt: NOW };
-  assert.equal(summarize({ franchises: [], works: [movie], logs: [log] }, "all", "2026-10-31").length, 0);
+  assert.equal(summarize({ franchises: [], people: [], works: [movie], logs: [log] }, "all", "2026-10-31").length, 0);
 });

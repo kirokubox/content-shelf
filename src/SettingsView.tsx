@@ -7,6 +7,7 @@ import { nowIso } from "./dateUtils";
 import { downloadTextFile } from "./fileUtils";
 import { Icon } from "./Icon";
 import { parseMangaShelfBackup } from "./mangaShelfImport";
+import { buildMarkdown } from "./markdownExport";
 import { Screen } from "./Screen";
 import type { DataSet } from "./types";
 
@@ -44,7 +45,7 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
     if (mode === "manga") {
       const r = parseMangaShelfBackup(text, nowIso());
       if (!r.ok) return setError(r.error);
-      setPending({ kind: "merge", plan: planMerge(data, { franchises: [], works: r.works, logs: [] }), label: "マンガ棚から取り込む" });
+      setPending({ kind: "merge", plan: planMerge(data, { franchises: [], works: r.works, logs: [], people: [] }), label: "マンガ棚から取り込む" });
       return;
     }
     const r = parseBackup(text);
@@ -94,6 +95,20 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
           <button type="button" className="setting-row" onClick={() => pick("restore")}>
             <span className="setting-label">バックアップから戻す（いまのデータと入れ替え）</span>
             <Icon name="upload" size={20} />
+          </button>
+        </div>
+      </section>
+      <section className="card">
+        <h2>テキストで書き出す</h2>
+        <p className="muted small">好きなもの台帳やAIとの振り返りに渡すためのテキストです。</p>
+        <div className="setting-list">
+          <button type="button" className="setting-row" onClick={() => { downloadTextFile(`content-shelf-all-${today}.md`, buildMarkdown(data, nowIso()), "text/markdown"); showToast("全記録を書き出しました"); }}>
+            <span className="setting-label">全記録をテキストで書き出す</span>
+            <Icon name="download" size={20} />
+          </button>
+          <button type="button" className="setting-row" onClick={() => { const from = `${today.slice(0, 7)}-01`; downloadTextFile(`content-shelf-month-${today.slice(0, 7)}.md`, buildMarkdown(data, nowIso(), { from, to: `${today.slice(0, 7)}-31` }), "text/markdown"); showToast("今月の記録を書き出しました"); }}>
+            <span className="setting-label">今月の記録をテキストで書き出す</span>
+            <Icon name="download" size={20} />
           </button>
         </div>
       </section>

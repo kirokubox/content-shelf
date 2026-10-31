@@ -40,6 +40,8 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     legacyNote: "",
     completedAt: null,
     touchedAt: now,
+    personIds: [],
+    setlist: "",
   };
 }
 

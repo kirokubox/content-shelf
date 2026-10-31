@@ -86,6 +86,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
   const [people, setPeople] = useState<string[]>(() => (work ? personNames(data, work.personIds) : []));
   const [personDraft, setPersonDraft] = useState("");
   const [searching, setSearching] = useState(false);
+  const [mediumOpen, setMediumOpen] = useState(false);
   const applyPick = (m: AnilistMedia) => {
     setW((cur) => ({
       ...cur,
@@ -187,27 +188,33 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </button>
       }
     >
-      <div className="form card">
-        <div className="field">
+      <div className="form card compact">
+        <div className="inline-row">
           <span className="field-label">種類</span>
+          <span className="inline-value">{MEDIUM_LABEL[w.medium]}</span>
+          <button type="button" className="text-btn" onClick={() => setMediumOpen(!mediumOpen)}>{mediumOpen ? "閉じる" : "変える"}</button>
+        </div>
+        {mediumOpen && (
           <div className="chips">
             {MEDIA.map((m) => (
-              <button key={m} type="button" className={`chip${w.medium === m ? " on" : ""}`} onClick={() => changeMedium(m)}>
+              <button key={m} type="button" className={`chip${w.medium === m ? " on" : ""}`} onClick={() => { changeMedium(m); setMediumOpen(false); }}>
                 {MEDIUM_LABEL[m]}
               </button>
             ))}
           </div>
+        )}
+        <div className="title-row">
+          {w.coverUrl && <img className="cover-thumb" src={w.coverUrl} alt="" />}
+          <label className="field grow">
+            <span className="field-label">タイトル</span>
+            <input className="text-input" value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={w.medium === "magazine" ? "例：週刊少年ジャンプ" : "作品名"} />
+          </label>
         </div>
-        <label className="field">
-          <span className="field-label">タイトル</span>
-          <input className="text-input" value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={w.medium === "magazine" ? "例：週刊少年ジャンプ" : "作品名"} />
-        </label>
         {(w.medium === "anime" || w.medium === "manga") && (
           <div className="field">
             {w.externalIds.anilist ? (
               <div className="picked">
-                {w.coverUrl && <img className="cover-thumb" src={w.coverUrl} alt="" />}
-                <span className="muted small">AniListの作品とつながっています。表紙・話数・完結はアプリを開いたときに確かめます。</span>
+                <span className="muted small">AniListとつながっています（表紙・話数・完結は自動で確かめます）</span>
                 <button type="button" className="text-btn" onClick={() => setW({ ...w, externalIds: { ...w.externalIds, anilist: undefined }, coverUrl: null, infoCheckedAt: null })}>外す</button>
               </div>
             ) : (
@@ -218,10 +225,6 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             {searching && <AnilistResults term={w.title} type={w.medium === "anime" ? "ANIME" : "MANGA"} onPick={applyPick} />}
           </div>
         )}
-        <label className="field">
-          <span className="field-label">読み仮名（任意）</span>
-          <input className="text-input" value={w.kana} onChange={(e) => set({ kana: e.target.value })} />
-        </label>
         {kind === "episode" && (
           <label className="field">
             <span className="field-label">シーズン・編（任意）</span>
@@ -241,7 +244,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       </div>
 
       {(kind === "episode" || kind === "volume") && (
-        <div className="form card">
+        <div className="form card compact">
           <div className="two-col">
             <label className="field">
               <span className="field-label">{kind === "episode" ? "何話まで見た" : "何巻まで読んだ"}</span>
@@ -282,7 +285,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       )}
 
       {(kind === "issue" || (kind === "episode" && scheduleOn)) && w.schedule && (
-        <div className="form card">
+        <div className="form card compact">
           <div className="two-col">
             <label className="field">
               <span className="field-label">{kind === "issue" ? "数え始める号の発売日" : "数え始める回の放送日"}</span>
@@ -339,7 +342,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       )}
 
       {w.owned && (
-        <div className="form card">
+        <div className="form card compact">
           <label className="field">
             <span className="field-label">持っている巻（任意）</span>
             <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 7" />
@@ -374,27 +377,29 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       )}
 
       {isNew && kind === "none" && w.status !== "wish" && (
-        <div className="form card">
-          <label className="field">
-            <span className="field-label">{doneWord(w.medium)}日</span>
-            <input className="text-input" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} />
-          </label>
-          <label className="field">
-            <span className="field-label">どこで・どうやって（任意）</span>
-            <input className="text-input" value={viewPlace} onChange={(e) => setViewPlace(e.target.value)} placeholder="例：映画館、配信、家" />
-          </label>
-          <div className="field">
-            <span className="field-label">星（任意）</span>
+        <div className="form card compact">
+          <div className="two-col">
+            <label className="field">
+              <span className="field-label">{doneWord(w.medium)}日</span>
+              <input className="text-input" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} />
+            </label>
+            <label className="field">
+              <span className="field-label">{w.medium === "live" ? "会場" : "どこで"}</span>
+              <input className="text-input" value={viewPlace} onChange={(e) => setViewPlace(e.target.value)} placeholder={w.medium === "live" ? "例：日本武道館" : "映画館・配信・家"} />
+            </label>
+          </div>
+          <div className="inline-row">
+            <span className="field-label">星</span>
             <Stars value={viewRating} onChange={setViewRating} />
           </div>
           <label className="field">
             <span className="field-label">感想（任意）</span>
-            <textarea className="text-input note-input" rows={5} value={viewNote} onChange={(e) => setViewNote(e.target.value)} />
+            <textarea className="text-input note-input" rows={3} value={viewNote} onChange={(e) => setViewNote(e.target.value)} />
           </label>
         </div>
       )}
 
-      <div className="form card">
+      <div className="form card compact">
         <label className="field">
           <span className="field-label">親作品・シリーズ（任意）</span>
           <input className="text-input" list="franchise-list" value={franchiseText} onChange={(e) => setFranchiseText(e.target.value)} placeholder="同じ原作のアニメ・マンガ・映画をまとめる名前" />
@@ -432,15 +437,25 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         {w.medium === "live" && (
           <label className="field">
             <span className="field-label">セットリスト（任意）</span>
-            <textarea className="text-input note-input" rows={5} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="1曲ずつ改行" />
+            <textarea className="text-input note-input" rows={4} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="1曲ずつ改行" />
           </label>
         )}
       </div>
 
-      <div className="form card">
+      <div className="form card compact">
+        <div className="two-col">
+          <label className="field">
+            <span className="field-label">読み仮名</span>
+            <input className="text-input" value={w.kana} onChange={(e) => set({ kana: e.target.value })} />
+          </label>
+          <label className="field">
+            <span className="field-label">画像のURL</span>
+            <input className="text-input" inputMode="url" value={w.coverUrl ?? ""} onChange={(e) => set({ coverUrl: e.target.value.trim() || null })} placeholder="https://…" />
+          </label>
+        </div>
         <label className="field">
           <span className="field-label">メモ（任意）</span>
-          <textarea className="text-input note-input" rows={3} value={w.memo} onChange={(e) => set({ memo: e.target.value })} />
+          <textarea className="text-input note-input" rows={2} value={w.memo} onChange={(e) => set({ memo: e.target.value })} />
         </label>
       </div>
       {error && <p className="field-error center">{error}</p>}

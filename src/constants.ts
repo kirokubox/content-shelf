@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.4.1";
+export const APP_VERSION = "0.4.2";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;

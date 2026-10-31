@@ -45,33 +45,34 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
   const title = log ? "記録を編集" : isProgress ? `${work.title}：日付を選んで記録` : `${doneWord(work.medium)}記録を追加`;
   return (
     <BottomSheet title={title} onClose={onClose}>
-      <div className="form">
-        <label className="field">
-          <span className="field-label">日付</span>
-          <input className="text-input" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
-        </label>
-        {showPosition && (
+      <div className="form compact">
+        <div className="two-col">
           <label className="field">
-            <span className="field-label">{kind === "episode" ? "第何話" : "何巻"}</span>
-            <input className="text-input" inputMode="numeric" value={position} onChange={(e) => setPosition(e.target.value)} />
-            {isProgress && !log && <span className="field-hint">保存すると、ここまで見た・読んだことになります。</span>}
+            <span className="field-label">日付</span>
+            <input className="text-input" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
           </label>
-        )}
-        {!isProgress && (
-          <>
+          {showPosition ? (
             <label className="field">
-              <span className="field-label">どこで・どうやって（任意）</span>
-              <input className="text-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="例：映画館、配信、家" />
+              <span className="field-label">{kind === "episode" ? "第何話" : "何巻"}</span>
+              <input className="text-input" inputMode="numeric" value={position} onChange={(e) => setPosition(e.target.value)} />
             </label>
-            <div className="field">
-              <span className="field-label">星（任意）</span>
-              <Stars value={rating} onChange={setRating} />
-            </div>
-          </>
+          ) : !isProgress ? (
+            <label className="field">
+              <span className="field-label">{work.medium === "live" ? "会場" : "どこで"}</span>
+              <input className="text-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={work.medium === "live" ? "例：日本武道館" : "映画館・配信・家"} />
+            </label>
+          ) : <span />}
+        </div>
+        {isProgress && showPosition && !log && <span className="field-hint">保存すると、ここまで見た・読んだことになります。</span>}
+        {!isProgress && (
+          <div className="inline-row">
+            <span className="field-label">星</span>
+            <Stars value={rating} onChange={setRating} />
+          </div>
         )}
         <label className="field">
           <span className="field-label">感想（任意）</span>
-          <textarea className="text-input note-input" rows={isProgress ? 3 : 6} value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea className="text-input note-input" rows={isProgress ? 2 : 4} value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         {error && <p className="field-error">{error}</p>}
       </div>

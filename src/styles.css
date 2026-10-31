@@ -468,3 +468,19 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 
 /* 縦に並ぶ中身は縮ませない（長い一覧のとき、絞り込みの帯が潰れて消えていた） */
 .content > * { flex-shrink: 0; }
+
+/* 入力画面を詰める（2026-10-31：縦を短く・2列・横に長い欄を減らす） */
+.form.compact { gap: var(--kb-space-3); }
+.card.compact { padding: var(--kb-space-3) var(--kb-space-4); }
+.form.compact .text-input:not(textarea) { min-height: 40px; }
+.form.compact .field { gap: var(--kb-space-1); }
+.form.compact .field-label { font-size: var(--kb-fs-xs); }
+.two-col { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--kb-space-2); }
+.two-col .text-input { min-width: 0; }
+.inline-row { display: flex; align-items: center; gap: var(--kb-space-3); min-height: 36px; }
+.inline-row .field-label { flex: none; min-width: 2.5em; }
+.inline-value { flex: 1; font-size: var(--kb-fs-m); font-weight: 600; }
+.title-row { display: flex; align-items: flex-end; gap: var(--kb-space-3); }
+.title-row .cover-thumb { width: 44px; height: 62px; }
+.grow { flex: 1; min-width: 0; }
+.note-input { min-height: 0; }

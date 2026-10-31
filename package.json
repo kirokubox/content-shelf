@@ -1,12 +1,12 @@
 {
   "name": "content-shelf",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
-    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/progressLogic.test.js .test-build/tests/backup.test.js .test-build/tests/mangaShelfImport.test.js .test-build/tests/summaryLogic.test.js .test-build/tests/linkLogic.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/progressLogic.test.js .test-build/tests/backup.test.js .test-build/tests/mangaShelfImport.test.js .test-build/tests/summaryLogic.test.js .test-build/tests/linkLogic.test.js .test-build/tests/anilist.test.js",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

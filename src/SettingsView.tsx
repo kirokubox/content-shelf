@@ -23,9 +23,10 @@ interface Props {
   onReplace: (data: DataSet) => Promise<void>;
   onAdd: (changes: DataSet) => Promise<void>;
   showToast: (text: string) => void;
+  onRefreshExternal: () => Promise<void>;
 }
 
-export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd, showToast }: Props) {
+export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd, showToast, onRefreshExternal }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"restore" | "merge" | "manga">("merge");
   const [pending, setPending] = useState<Pending | null>(null);
@@ -109,6 +110,29 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
           <button type="button" className="setting-row" onClick={() => { const from = `${today.slice(0, 7)}-01`; downloadTextFile(`content-shelf-month-${today.slice(0, 7)}.md`, buildMarkdown(data, nowIso(), { from, to: `${today.slice(0, 7)}-31` }), "text/markdown"); showToast("今月の記録を書き出しました"); }}>
             <span className="setting-label">今月の記録をテキストで書き出す</span>
             <Icon name="download" size={20} />
+          </button>
+        </div>
+      </section>
+      <section className="card">
+        <h2>作品の情報</h2>
+        <p className="muted small">AniListとつながったアニメ・マンガの表紙・全話数・完結・放送済みの話数は、アプリを開いたときに12時間ごとに確かめます。見た位置は変えません。</p>
+        <div className="setting-list">
+          <button
+            type="button"
+            className="setting-row"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onRefreshExternal();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "確かめられませんでした");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <span className="setting-label">いま確かめる</span>
           </button>
         </div>
       </section>

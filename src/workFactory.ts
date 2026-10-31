@@ -42,6 +42,7 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     touchedAt: now,
     personIds: [],
     setlist: "",
+    infoCheckedAt: null,
   };
 }
 

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { applyAnilist, fetchAnilistByIds } from "./anilist";
+import type { AnilistMedia } from "./anilist";
 import { ConfirmSheet } from "./BottomSheet";
-import { MEDIUM_LABEL } from "./constants";
+import { MEDIUM_LABEL, REFRESH_INTERVAL_MS } from "./constants";
 import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
@@ -24,7 +26,7 @@ type Overlay =
   | { kind: "search" }
   | { kind: "settings" }
   | { kind: "detail"; workId: string }
-  | { kind: "editor"; workId: string | null; medium: Medium }
+  | { kind: "editor"; workId: string | null; medium: Medium; pick?: AnilistMedia }
   | { kind: "pickMedium" }
   | { kind: "franchise"; id: string }
   | { kind: "person"; id: string };
@@ -52,6 +54,34 @@ export default function App() {
       .catch((e) => setLoadError(e instanceof Error ? e.message : "データを読み込めませんでした"));
     requestPersist().then(setPersisted);
   }, []);
+
+  /** AniListとつながった作品の表紙・話数・完結を確かめる（見た位置は変えない） */
+  const refreshExternal = useCallback(async (works: Work[], force: boolean): Promise<number> => {
+    const due = works.filter((w) => w.deletedAt === null && w.externalIds.anilist && w.status !== "done" &&
+      (force || !w.infoCheckedAt || Date.now() - Date.parse(w.infoCheckedAt) > REFRESH_INTERVAL_MS));
+    if (due.length === 0) return 0;
+    const media = await fetchAnilistByIds(Array.from(new Set(due.map((w) => w.externalIds.anilist!))));
+    const byId = new Map(media.map((m) => [m.id, m]));
+    const now = nowIso();
+    const changed = due
+      .map((w) => {
+        const m = byId.get(w.externalIds.anilist!);
+        return m ? withAutoStatus(applyAnilist(w, m, now), now) : null;
+      })
+      .filter((w): w is Work => w !== null);
+    if (changed.length > 0) {
+      setData((cur) => applyChanges(cur, { works: changed }));
+      await putRecords({ works: changed });
+    }
+    return changed.length;
+  }, []);
+
+  useEffect(() => {
+    if (!loaded || !navigator.onLine) return;
+    refreshExternal(data.works, false).catch(() => {});
+    // 開いたときに1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   /** 変更を画面と保存先の両方へ */
   const commit = useCallback(
@@ -171,7 +201,24 @@ export default function App() {
 
       {stack.map((o, i) => {
         const key = `${o.kind}-${i}`;
-        if (o.kind === "search") return <SearchView key={key} data={data} onBack={pop} onOpen={handlers.onOpen} onOpenPerson={(p) => push({ kind: "person", id: p.id })} onOpenFranchise={(f) => push({ kind: "franchise", id: f.id })} />;
+        if (o.kind === "search")
+          return (
+            <SearchView
+              key={key}
+              data={data}
+              onBack={pop}
+              onOpen={handlers.onOpen}
+              onOpenPerson={(p) => push({ kind: "person", id: p.id })}
+              onOpenFranchise={(f) => push({ kind: "franchise", id: f.id })}
+              onPickExternal={(m) => {
+                const existing = data.works.find((w) => w.deletedAt === null && w.externalIds.anilist === m.id);
+                if (existing) {
+                  showToast("登録済みの作品です");
+                  push({ kind: "detail", workId: existing.id });
+                } else push({ kind: "editor", workId: null, medium: m.type === "ANIME" ? "anime" : "manga", pick: m });
+              }}
+            />
+          );
         if (o.kind === "franchise") {
           const f = data.franchises.find((x) => x.id === o.id && x.deletedAt === null);
           if (!f) return null;
@@ -231,6 +278,10 @@ export default function App() {
                 setData((cur) => applyChanges(cur, d));
               }}
               showToast={showToast}
+              onRefreshExternal={async () => {
+                const n = await refreshExternal(data.works, true);
+                showToast(n > 0 ? `${n}作品の情報を確かめました` : "AniListとつながった作品はありません");
+              }}
             />
           );
         if (o.kind === "pickMedium")
@@ -259,6 +310,7 @@ export default function App() {
               initialMedium={o.medium ?? defaultMedium}
               today={today}
               data={data}
+              pick={o.pick ?? null}
               onCancel={pop}
               onSave={(work, firstLog, created) => {
                 commit({ works: [work], logs: firstLog ? [firstLog] : [], franchises: created.franchises, people: created.people });

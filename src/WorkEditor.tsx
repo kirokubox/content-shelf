@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MEDIUM_LABEL, STATUS_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
 import { formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { progressKindOf, withAutoStatus } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
+import { airedFromAnilist, seasonLabelOf } from "./anilist";
+import type { AnilistMedia } from "./anilist";
+import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
 import type { DataSet, Franchise, Log, Medium, OwnedMedium, PaperPlace, Person, VolumeRange, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
@@ -55,11 +58,13 @@ interface Props {
   today: string;
   /** 親作品・人物の候補と名前の解決に使う */
   data: DataSet;
+  /** 検索画面でAniListの作品を選んで来たとき */
+  pick?: AnilistMedia | null;
   onCancel: () => void;
   onSave: (work: Work, firstLog: Log | null, created: { franchises: Franchise[]; people: Person[] }) => void;
 }
 
-export function WorkEditor({ work, initialMedium, today, data, onCancel, onSave }: Props) {
+export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, onSave }: Props) {
   const isNew = work === null;
   // 週刊誌は登録したらすぐ毎週数えたいので、発売日の欄を最初から出す
   const withMagazineSchedule = (x: Work): Work => (x.medium === "magazine" && !x.schedule ? { ...x, schedule: { firstDate: today, firstNumber: 1, skipDates: [] } } : x);
@@ -80,6 +85,29 @@ export function WorkEditor({ work, initialMedium, today, data, onCancel, onSave 
   const [franchiseText, setFranchiseText] = useState(() => (work?.franchiseId ? data.franchises.find((f) => f.id === work.franchiseId)?.title ?? "" : ""));
   const [people, setPeople] = useState<string[]>(() => (work ? personNames(data, work.personIds) : []));
   const [personDraft, setPersonDraft] = useState("");
+  const [searching, setSearching] = useState(false);
+  const applyPick = (m: AnilistMedia) => {
+    setW((cur) => ({
+      ...cur,
+      title: cur.title.trim() ? cur.title : m.title,
+      seasonLabel: cur.seasonLabel.trim() || m.type !== "ANIME" ? cur.seasonLabel : seasonLabelOf(m),
+      finished: m.status === "FINISHED" ? true : m.status === "RELEASING" || m.status === "HIATUS" || m.status === "NOT_YET_RELEASED" ? false : cur.finished,
+      coverUrl: m.cover ?? cur.coverUrl,
+      externalIds: { ...cur.externalIds, anilist: m.id },
+      infoCheckedAt: nowIso(),
+    }));
+    const total = m.type === "ANIME" ? m.episodes : m.volumes;
+    if (total) setTotalText(String(total));
+    const aired = airedFromAnilist(m);
+    if (aired !== null) setLatestText(String(aired));
+    setSearching(false);
+  };
+  // 検索画面から来たときは、選んだ作品で最初から埋める
+  useEffect(() => {
+    if (pick) applyPick(pick);
+    // 開いたときに1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const addPerson = () => {
     const n = personDraft.trim();
     if (n && !people.includes(n)) setPeople([...people, n]);
@@ -174,6 +202,22 @@ export function WorkEditor({ work, initialMedium, today, data, onCancel, onSave 
           <span className="field-label">タイトル</span>
           <input className="text-input" value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={w.medium === "magazine" ? "例：週刊少年ジャンプ" : "作品名"} />
         </label>
+        {(w.medium === "anime" || w.medium === "manga") && (
+          <div className="field">
+            {w.externalIds.anilist ? (
+              <div className="picked">
+                {w.coverUrl && <img className="cover-thumb" src={w.coverUrl} alt="" />}
+                <span className="muted small">AniListの作品とつながっています。表紙・話数・完結はアプリを開いたときに確かめます。</span>
+                <button type="button" className="text-btn" onClick={() => setW({ ...w, externalIds: { ...w.externalIds, anilist: undefined }, coverUrl: null, infoCheckedAt: null })}>外す</button>
+              </div>
+            ) : (
+              <button type="button" className="secondary-btn" disabled={!w.title.trim()} onClick={() => setSearching(!searching)}>
+                {searching ? "探すのをやめる" : "AniListで探して表紙・話数を入れる"}
+              </button>
+            )}
+            {searching && <AnilistResults term={w.title} type={w.medium === "anime" ? "ANIME" : "MANGA"} onPick={applyPick} />}
+          </div>
+        )}
         <label className="field">
           <span className="field-label">読み仮名（任意）</span>
           <input className="text-input" value={w.kana} onChange={(e) => set({ kana: e.target.value })} />

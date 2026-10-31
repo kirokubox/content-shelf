@@ -20,7 +20,7 @@ export const EMPTY_DATA: DataSet = { franchises: [], works: [], logs: [], people
 
 /** 古い形（段階2まで）の作品に、あとから足した項目を補う */
 export function normalizeWork(w: Work): Work {
-  return { ...w, personIds: Array.isArray(w.personIds) ? w.personIds : [], setlist: typeof w.setlist === "string" ? w.setlist : "" };
+  return { ...w, personIds: Array.isArray(w.personIds) ? w.personIds : [], setlist: typeof w.setlist === "string" ? w.setlist : "", infoCheckedAt: typeof w.infoCheckedAt === "string" ? w.infoCheckedAt : null };
 }
 
 export function normalizeData(d: Partial<DataSet>): DataSet {

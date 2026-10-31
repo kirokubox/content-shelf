@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.3.0";
+export const APP_VERSION = "0.4.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;
@@ -65,3 +65,6 @@ export function wishWord(medium: Medium): string {
   if (medium === "live") return "行きたい";
   return "見たい・読みたい";
 }
+
+/** AniListの情報を自動で確かめる間隔（12時間） */
+export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;

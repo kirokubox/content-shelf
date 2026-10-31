@@ -76,6 +76,7 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     touchedAt: updated,
     personIds: [],
     setlist: "",
+    infoCheckedAt: null,
   };
 }
 

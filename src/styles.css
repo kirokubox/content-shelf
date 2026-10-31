@@ -452,3 +452,12 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 .setlist ol { margin: var(--kb-space-2) 0 0; padding-left: 1.6em; line-height: 1.7; font-size: var(--kb-fs-m); }
 
 .chips .chip { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 段階4：AniListの表紙 */
+.cover-thumb { flex: none; width: 40px; height: 56px; border-radius: 6px; object-fit: cover; background: var(--kb-surface-2); display: block; }
+.card-cover { margin-left: var(--kb-space-4); cursor: pointer; }
+.work-card .card-cover + .work-main { padding-left: var(--kb-space-3); }
+.picked { display: flex; align-items: center; gap: var(--kb-space-3); }
+.picked .muted { flex: 1; }
+.anilist-list .list-row { align-items: flex-start; }
+.setting-row:disabled { opacity: 0.5; }

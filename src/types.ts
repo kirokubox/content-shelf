@@ -90,6 +90,8 @@ export interface Work extends Base {
   personIds: string[];
   /** LIVE・フェスのセットリスト（任意） */
   setlist: string;
+  /** 外部（AniList）の情報を最後に確かめた日時（段階4） */
+  infoCheckedAt: string | null;
 }
 
 /** progress＝続きを1つ進めた記録、view＝見た・読んだ・参加した記録（映画・小説など） */

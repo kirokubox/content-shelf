@@ -132,3 +132,37 @@ export function latestLabel(work: Work, today: string): string {
   }
   return "";
 }
+
+/** 持っている巻のうち一番大きい巻（持っていなければ 0） */
+export function ownedMax(work: Work): number {
+  if (!work.owned) return 0;
+  return work.owned.ranges.reduce((m, r) => Math.max(m, r.to), 0);
+}
+
+/**
+ * 新刊を買うシリーズで、まだ買っていない巻の数（既刊 − 持っている最大の巻）。
+ * 「新刊を買う」の印が無い・既刊が分からないときは 0
+ */
+export function unpurchasedCount(work: Work): number {
+  if (!work.buying || progressKindOf(work) !== "volume") return 0;
+  const latest = availableCount(work, "9999-12-31");
+  if (latest === null) return 0;
+  return Math.max(0, latest - ownedMax(work));
+}
+
+/** 「買った」：持っている巻の次の1巻を足す（範囲がつながっていればのばす） */
+export function markBoughtNext(work: Work, now: string = nowIso()): Work {
+  const owned = work.owned ?? { known: true, ranges: [], medium: null, place: null };
+  const next = ownedMax(work) + 1;
+  const ranges = owned.ranges.map((r) => ({ ...r }));
+  const last = ranges.find((r) => r.to === next - 1);
+  if (last) last.to = next;
+  else ranges.push({ from: next, to: next });
+  return { ...work, owned: { ...owned, known: true, ranges }, updatedAt: now, touchedAt: now };
+}
+
+/** 「新刊が出た」：既刊を1つ増やす（既刊が分からなければ、持っている巻・読んだ巻の大きい方の次） */
+export function markNewVolume(work: Work, now: string = nowIso()): Work {
+  const base = Math.max(availableCount(work, "9999-12-31") ?? 0, ownedMax(work), work.progress ?? 0);
+  return withAutoStatus({ ...work, latestKnown: base + 1, finished: work.finished === true ? false : work.finished, updatedAt: now, touchedAt: now }, now);
+}

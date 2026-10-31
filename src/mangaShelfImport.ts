@@ -77,6 +77,8 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     personIds: [],
     setlist: "",
     infoCheckedAt: null,
+    buying: false,
+    videoOwned: null,
   };
 }
 

@@ -7,7 +7,7 @@ import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogSheet } from "./LogSheet";
-import { progressKindOf, stepForward, withAutoStatus } from "./progressLogic";
+import { markBoughtNext, markNewVolume, progressKindOf, stepForward, withAutoStatus } from "./progressLogic";
 import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
@@ -149,8 +149,21 @@ export default function App() {
     showToast("作品を削除しました", 5000, { label: "取り消す", onClick: () => commit({ works: [work], logs: logs.map((l) => ({ ...l, deletedAt: null })) }) });
   };
 
+  const bought = (work: Work) => {
+    const next = markBoughtNext(work);
+    commit({ works: [next] });
+    const vol = next.owned?.ranges.reduce((m, r) => Math.max(m, r.to), 0);
+    showToast(`${work.title}：${vol}巻を買った`, 4000, { label: "取り消す", onClick: () => commit({ works: [{ ...work, updatedAt: nowIso() }] }) });
+  };
+  const newVolume = (work: Work) => {
+    const next = markNewVolume(work);
+    commit({ works: [next] });
+    showToast(`${work.title}：新刊（${next.latestKnown}巻）`, 4000, { label: "取り消す", onClick: () => commit({ works: [{ ...work, updatedAt: nowIso() }] }) });
+  };
+
   const handlers = {
     today,
+    onBought: bought,
     onOpen: (w: Work) => push({ kind: "detail", workId: w.id }),
     onStep: (w: Work) => step(w),
     onStepWithDate: (w: Work) => setSheet({ workId: w.id, log: null, newKind: "progress" }),
@@ -339,6 +352,8 @@ export default function App() {
             onEditLog={(log) => setSheet({ workId: w.id, log, newKind: log.kind })}
             onSetStatus={(s) => setStatus(w, s)}
             onDelete={() => setConfirmDelete(w)}
+            onBought={() => bought(w)}
+            onNewVolume={() => newVolume(w)}
           />
         );
       })}

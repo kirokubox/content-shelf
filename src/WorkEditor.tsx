@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
+import { MEDIUM_LABEL, STATUS_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
 import { formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { progressKindOf, withAutoStatus } from "./progressLogic";
@@ -151,7 +151,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       ...w,
       franchiseId: fr.id,
       personIds: pp.ids,
-      setlist: w.medium === "live" ? w.setlist.trim() : w.setlist,
+      setlist: w.medium === "live" || w.medium === "video" ? w.setlist.trim() : w.setlist,
       title: w.title.trim(),
       kana: w.kana.trim(),
       seasonLabel: w.seasonLabel.trim(),
@@ -343,6 +343,10 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
 
       {w.owned && (
         <div className="form card compact">
+          <label className="toggle-row">
+            <span>新刊を買う（新刊と未購入を知らせる）</span>
+            <input type="checkbox" checked={w.buying} onChange={(e) => set({ buying: e.target.checked })} />
+          </label>
           <label className="field">
             <span className="field-label">持っている巻（任意）</span>
             <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 7" />
@@ -434,7 +438,19 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             {data.people.filter((p) => p.deletedAt === null).map((p) => <option key={p.id} value={p.name} />)}
           </datalist>
         </div>
-        {w.medium === "live" && (
+        {(w.medium === "live" || w.medium === "video") && (
+          <div className="inline-row">
+            <span className="field-label">映像</span>
+            <div className="chips">
+              {([null, "dvd", "bluray", "digital"] as const).map((v) => (
+                <button key={String(v)} type="button" className={`chip${w.videoOwned === v ? " on" : ""}`} onClick={() => set({ videoOwned: v })}>
+                  {v ? VIDEO_OWNED_LABEL[v] : "なし"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(w.medium === "live" || w.medium === "video") && (
           <label className="field">
             <span className="field-label">セットリスト（任意）</span>
             <textarea className="text-input note-input" rows={4} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="1曲ずつ改行" />

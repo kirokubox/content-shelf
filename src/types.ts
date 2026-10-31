@@ -1,6 +1,6 @@
 // コンテンツ棚のデータの形。仕様の正本：05_開発・Webアプリ/18_コンテンツ棚/181_コンテンツ棚_初期仕様.md
 
-export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "live", "other"] as const;
+export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "live", "video", "other"] as const;
 export type Medium = (typeof MEDIA)[number];
 
 /** 続きの数え方。メディアから決まる */
@@ -92,7 +92,13 @@ export interface Work extends Base {
   setlist: string;
   /** 外部（AniList）の情報を最後に確かめた日時（段階4） */
   infoCheckedAt: string | null;
+  /** マンガ：新刊を買うシリーズ（新刊と未購入を知らせる。v0.5.0） */
+  buying: boolean;
+  /** LIVE・LIVE映像：映像を持っている（v0.5.0） */
+  videoOwned: VideoOwned;
 }
+
+export type VideoOwned = "dvd" | "bluray" | "digital" | null;
 
 /** progress＝続きを1つ進めた記録、view＝見た・読んだ・参加した記録（映画・小説など） */
 export type LogKind = "progress" | "view";

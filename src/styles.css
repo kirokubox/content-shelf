@@ -484,3 +484,14 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 .title-row .cover-thumb { width: 44px; height: 62px; }
 .grow { flex: 1; min-width: 0; }
 .note-input { min-height: 0; }
+
+/* v0.5.0：新刊・未購入 */
+.buy-tag { margin-left: var(--kb-space-2); padding: 0 6px; border-radius: var(--kb-radius-s); background: var(--kb-warning-soft); color: var(--kb-warning); font-weight: 600; }
+.buy-btn { flex: none; min-height: 36px; padding: 0 var(--kb-space-3); border: 0; border-radius: var(--kb-radius-pill); background: var(--kb-warning-soft); color: var(--kb-warning); font-weight: 700; font-size: var(--kb-fs-s); }
+.buy-btn:active { transform: scale(0.94); }
+
+.work-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.work-body .work-main { width: 100%; }
+.work-body .buy-btn { margin: 2px 0 var(--kb-space-1) var(--kb-space-4); min-height: 32px; }
+.work-card .card-cover + .work-body .work-main { padding-left: var(--kb-space-3); }
+.work-card .card-cover + .work-body .buy-btn { margin-left: var(--kb-space-3); }

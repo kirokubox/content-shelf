@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, UNIT_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
+import { MEDIUM_LABEL, STATUS_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
 import { formatDate, formatDateShort, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
-import { latestLabel, positionLabel, progressKindOf, unconsumedCount } from "./progressLogic";
+import { latestLabel, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesText } from "./WorkEditor";
@@ -25,6 +25,8 @@ interface Props {
   onEditLog: (log: Log) => void;
   onSetStatus: (status: WorkStatus) => void;
   onDelete: () => void;
+  onBought: () => void;
+  onNewVolume: () => void;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -37,7 +39,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete }: Props) {
+export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume }: Props) {
+  const unpurchased = unpurchasedCount(work);
   const [menu, setMenu] = useState(false);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
@@ -83,6 +86,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="形" value={work.owned?.medium ? OWNED_LABEL[work.owned.medium] : null} />
           <Row label="置き場所" value={work.owned?.medium === "paper" && work.owned.place ? PLACE_LABEL[work.owned.place] : null} />
           <Row label="版" value={work.edition} />
+          <Row label="新刊" value={work.buying ? (unpurchased > 0 ? `買う（未購入 ${unpurchased}巻）` : "買う（買い終わっている）") : null} />
+          <Row label="映像" value={work.videoOwned ? `${VIDEO_OWNED_LABEL[work.videoOwned]}を持っている` : null} />
           <Row label="記録へ移った日" value={work.status === "done" && work.completedAt ? formatDate(isoToDateKey(work.completedAt), today) : null} />
           <Row label="読み仮名" value={work.kana} />
           <Row label="親作品" value={franchise ? <button type="button" className="link-btn" onClick={() => onOpenFranchise(franchise)}>{franchise.title}</button> : null} />
@@ -112,6 +117,12 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
             <button type="button" className="secondary-btn" onClick={() => onAddLog("progress")}>
               日付を選んで記録
             </button>
+          )}
+          {work.medium === "manga" && work.buying && (
+            <>
+              <button type="button" className="secondary-btn" onClick={onNewVolume}>新刊が出た</button>
+              {unpurchased > 0 && <button type="button" className="secondary-btn" onClick={onBought}>1巻買った</button>}
+            </>
           )}
           <button type="button" className={kind === "none" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
             {kind === "none" ? `${doneWord(work.medium)}記録を追加` : "感想を残す"}

@@ -8,12 +8,14 @@ import type { Period } from "./summaryLogic";
 import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
+import { unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
   today: string;
   onOpen: (work: Work) => void;
   onStep: (work: Work) => void;
   onStepWithDate: (work: Work) => void;
+  onBought: (work: Work) => void;
 }
 
 /** 記録タブ・ホームの下段に出す1件（見た記録、または記録へ移った作品） */
@@ -154,7 +156,10 @@ export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handler
   const [medium, setMedium] = useState<Medium | null>(null);
   const inStatus = data.works.filter((w) => w.deletedAt === null && w.status === status);
   const media = MEDIA.filter((m) => inStatus.some((w) => w.medium === m));
-  const list = inStatus.filter((w) => medium === null || w.medium === medium).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt));
+  // 新刊が出て未購入のものを先に、あとは最近操作した順
+  const list = inStatus
+    .filter((w) => medium === null || w.medium === medium)
+    .sort((a, b) => Number(unpurchasedCount(b) > 0) - Number(unpurchasedCount(a) > 0) || b.touchedAt.localeCompare(a.touchedAt));
   return (
     <>
       <div className="segmented" role="tablist">

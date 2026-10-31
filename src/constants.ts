@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.4.2";
+export const APP_VERSION = "0.5.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;
@@ -16,6 +16,7 @@ export const MEDIUM_LABEL: Record<Medium, string> = {
   novel: "小説",
   movie: "映画",
   live: "LIVE・フェス",
+  video: "LIVE映像",
   other: "その他",
 };
 
@@ -27,6 +28,7 @@ export const PROGRESS_KIND: Record<Medium, ProgressKind> = {
   novel: "none",
   movie: "none",
   live: "none",
+  video: "none",
   other: "none",
 };
 
@@ -55,6 +57,7 @@ export function doneWord(medium: Medium): string {
   if (medium === "movie") return "見た";
   if (medium === "novel") return "読んだ";
   if (medium === "live") return "行った";
+  if (medium === "video") return "見た";
   return "見た・読んだ";
 }
 
@@ -63,8 +66,11 @@ export function wishWord(medium: Medium): string {
   if (medium === "movie") return "見たい";
   if (medium === "novel") return "読みたい";
   if (medium === "live") return "行きたい";
+  if (medium === "video") return "見たい";
   return "見たい・読みたい";
 }
 
 /** AniListの情報を自動で確かめる間隔（12時間） */
 export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
+export const VIDEO_OWNED_LABEL = { dvd: "DVD", bluray: "Blu-ray", digital: "配信・デジタル" } as const;

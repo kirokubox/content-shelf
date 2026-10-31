@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { buildBackup, backupFileName, parseBackup, planMerge } from "./backup";
-import type { MergePlan } from "./backup";
+import { buildBackup, backupFileName, parseBackup, planMerge, planUpdate } from "./backup";
+import type { MergePlan, UpdatePlan } from "./backup";
 import { ConfirmSheet } from "./BottomSheet";
 import { APP_VERSION } from "./constants";
 import { nowIso } from "./dateUtils";
@@ -13,7 +13,8 @@ import type { DataSet } from "./types";
 
 type Pending =
   | { kind: "restore"; data: DataSet; works: number; logs: number }
-  | { kind: "merge"; plan: MergePlan; label: string };
+  | { kind: "merge"; plan: MergePlan; label: string }
+  | { kind: "update"; plan: UpdatePlan };
 
 interface Props {
   data: DataSet;
@@ -28,7 +29,7 @@ interface Props {
 
 export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd, showToast, onRefreshExternal }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<"restore" | "merge" | "manga">("merge");
+  const [mode, setMode] = useState<"restore" | "merge" | "manga" | "update">("merge");
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,6 +52,7 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
     }
     const r = parseBackup(text);
     if (!r.ok) return setError(r.error);
+    if (mode === "update") return setPending({ kind: "update", plan: planUpdate(data, r.data) });
     if (mode === "restore") setPending({ kind: "restore", data: r.data, works: r.data.works.length, logs: r.data.logs.length });
     else setPending({ kind: "merge", plan: planMerge(data, r.data), label: "バックアップから追加" });
   };
@@ -62,6 +64,10 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
       if (pending.kind === "restore") {
         await onReplace(pending.data);
         showToast("バックアップから戻しました");
+      } else if (pending.kind === "update") {
+        await onAdd(pending.plan.changes);
+        const w = pending.plan.counts[0];
+        showToast(`作品：追加${w.added}・更新${w.updated}`);
       } else {
         await onAdd(pending.plan.add);
         showToast(`${pending.plan.add.works.length}作品・${pending.plan.add.logs.length}件の記録を追加しました`);
@@ -91,6 +97,10 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
           </button>
           <button type="button" className="setting-row" onClick={() => pick("merge")}>
             <span className="setting-label">バックアップから追加</span>
+            <Icon name="upload" size={20} />
+          </button>
+          <button type="button" className="setting-row" onClick={() => pick("update")}>
+            <span className="setting-label">バックアップから更新（新しくなったものだけ上書き）</span>
             <Icon name="upload" size={20} />
           </button>
           <button type="button" className="setting-row" onClick={() => pick("restore")}>
@@ -167,6 +177,18 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
           message={`いまのデータ（${works}作品・${logs}件の記録）を消して、バックアップの${pending.works}作品・${pending.logs}件の記録に入れ替えます。先にいまのバックアップを保存しておくと安心です。`}
           confirmLabel="入れ替える"
           danger
+          busy={busy}
+          onConfirm={confirm}
+          onClose={() => setPending(null)}
+        />
+      )}
+      {pending?.kind === "update" && (
+        <ConfirmSheet
+          title="バックアップから更新"
+          message={pending.plan.counts
+            .map((c) => `${c.label}：追加${c.added}・更新${c.updated}（この端末の方が新しい・同じ ${c.kept}件はそのまま）`)
+            .join("\n")}
+          confirmLabel="更新する"
           busy={busy}
           onConfirm={confirm}
           onClose={() => setPending(null)}

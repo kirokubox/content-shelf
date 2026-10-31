@@ -108,3 +108,42 @@ export function planMerge(current: DataSet, incoming: DataSet): MergePlan {
     ],
   };
 }
+
+export interface UpdatePlan {
+  changes: DataSet;
+  counts: { label: string; added: number; updated: number; kept: number }[];
+}
+
+/**
+ * 更新：同じ id は、取り込む方の updatedAt が新しいときだけ上書きする。無い id は足す。
+ * 端末で後から直したもの（端末の方が新しい）は残る
+ */
+export function planUpdate(current: DataSet, incoming: DataSet): UpdatePlan {
+  const pick = <T extends { id: string; updatedAt: string }>(cur: T[], inc: T[]) => {
+    const map = new Map(cur.map((r) => [r.id, r]));
+    let added = 0;
+    let updated = 0;
+    let kept = 0;
+    const out: T[] = [];
+    for (const r of inc) {
+      const c = map.get(r.id);
+      if (!c) { out.push(r); added += 1; }
+      else if (r.updatedAt > c.updatedAt) { out.push(r); updated += 1; }
+      else kept += 1;
+    }
+    return { out, added, updated, kept };
+  };
+  const f = pick(current.franchises, incoming.franchises);
+  const w = pick(current.works, incoming.works);
+  const l = pick(current.logs, incoming.logs);
+  const p = pick(current.people, incoming.people);
+  return {
+    changes: { franchises: f.out, works: w.out, logs: l.out, people: p.out },
+    counts: [
+      { label: "作品", added: w.added, updated: w.updated, kept: w.kept },
+      { label: "記録", added: l.added, updated: l.updated, kept: l.kept },
+      { label: "人物", added: p.added, updated: p.updated, kept: p.kept },
+      { label: "親作品", added: f.added, updated: f.updated, kept: f.kept },
+    ],
+  };
+}

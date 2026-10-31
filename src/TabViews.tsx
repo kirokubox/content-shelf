@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, doneWord } from "./constants";
+import { MEDIUM_LABEL, doneWord } from "./constants";
 import { formatDate, formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { Stars } from "./Screen";
 import { countUnit, completedWorks, monthlyCounts, summarize } from "./summaryLogic";
 import type { Period } from "./summaryLogic";
-import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
+import type { DataSet, Log, Medium, Work } from "./types";
 import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
-import { unpurchasedCount } from "./progressLogic";
+import { continueGroup, hasNext, unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
   today: string;
@@ -82,7 +82,7 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
 
 export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void }) {
   const recent = useMemo(
-    () => data.works.filter((w) => w.deletedAt === null && w.status === "active").sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 5),
+    () => data.works.filter((w) => w.deletedAt === null && continueGroup(w) === "following").sort((a, b) => Number(hasNext(b, handlers.today)) - Number(hasNext(a, handlers.today)) || b.touchedAt.localeCompare(a.touchedAt)).slice(0, 5),
     [data.works],
   );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
@@ -133,8 +133,6 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords }: {
   );
 }
 
-const CONTINUE_STATUSES: WorkStatus[] = ["active", "paused", "wish"];
-
 function MediumChips({ media, value, onChange }: { media: Medium[]; value: Medium | null; onChange: (m: Medium | null) => void }) {
   if (media.length < 2) return null;
   return (
@@ -151,35 +149,88 @@ function MediumChips({ media, value, onChange }: { media: Medium[]; value: Mediu
   );
 }
 
+type ContinueTab = "following" | "reading" | "wish" | "paused";
+const CONTINUE_TABS: { id: ContinueTab; label: string }[] = [
+  { id: "following", label: "追っている" },
+  { id: "reading", label: "読みかけ" },
+  { id: "wish", label: "見たい" },
+  { id: "paused", label: "休止" },
+];
+const EMPTY_TEXT: Record<ContinueTab, string> = {
+  following: "追っている作品はありません。今期のアニメ・週刊誌や、「新刊を買う」の印を付けたマンガがここに並びます。",
+  reading: "読みかけのマンガはありません。",
+  wish: "見たい・読みたい作品はありません。",
+  paused: "休止中の作品はありません。",
+};
+
+function kanaKey(w: Work): string {
+  return (w.kana || w.title).normalize("NFKC");
+}
+
 export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handlers: CardHandlers; onAdd: () => void }) {
-  const [status, setStatus] = useState<WorkStatus>("active");
+  const [tab, setTab] = useState<ContinueTab>("following");
   const [medium, setMedium] = useState<Medium | null>(null);
-  const inStatus = data.works.filter((w) => w.deletedAt === null && w.status === status);
-  const media = MEDIA.filter((m) => inStatus.some((w) => w.medium === m));
-  // 新刊が出て未購入のものを先に、あとは最近操作した順
-  const list = inStatus
-    .filter((w) => medium === null || w.medium === medium)
-    .sort((a, b) => Number(unpurchasedCount(b) > 0) - Number(unpurchasedCount(a) > 0) || b.touchedAt.localeCompare(a.touchedAt));
+  const [caughtUpOpen, setCaughtUpOpen] = useState(false);
+  const live = data.works.filter((w) => w.deletedAt === null);
+  const inTab = live.filter((w) =>
+    tab === "following" || tab === "reading" ? continueGroup(w) === tab : w.status === (tab === "wish" ? "wish" : "paused"),
+  );
+  const media = MEDIA.filter((m) => inTab.some((w) => w.medium === m));
+  const shown = inTab.filter((w) => medium === null || w.medium === medium);
+  const byRecent = (a: Work, b: Work) => b.touchedAt.localeCompare(a.touchedAt);
+  let main: Work[];
+  let caughtUp: Work[] = [];
+  if (tab === "following") {
+    // やることがある（未消化・未購入）ものを上に。追いついたものはたたむ
+    main = shown.filter((w) => hasNext(w, handlers.today)).sort((a, b) => Number(unpurchasedCount(b) > 0) - Number(unpurchasedCount(a) > 0) || byRecent(a, b));
+    caughtUp = shown.filter((w) => !hasNext(w, handlers.today)).sort(byRecent);
+  } else if (tab === "reading") {
+    // 漫画喫茶で探しやすいよう、題名（読み仮名）順
+    main = [...shown].sort((a, b) => kanaKey(a).localeCompare(kanaKey(b), "ja"));
+  } else {
+    main = [...shown].sort(byRecent);
+  }
   return (
     <>
       <div className="segmented" role="tablist">
-        {CONTINUE_STATUSES.map((s) => (
-          <button key={s} type="button" role="tab" aria-selected={s === status} className={`seg${s === status ? " on" : ""}`} onClick={() => { setStatus(s); setMedium(null); }}>
-            {s === "wish" ? "見たい" : STATUS_LABEL[s]}
+        {CONTINUE_TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={t.id === tab} className={`seg${t.id === tab ? " on" : ""}`} onClick={() => { setTab(t.id); setMedium(null); }}>
+            {t.label}
           </button>
         ))}
       </div>
       <MediumChips media={media} value={medium} onChange={setMedium} />
-      {list.length === 0 ? (
-        <Empty text={status === "active" ? "進行中の作品はありません。" : status === "paused" ? "休止中の作品はありません。" : "見たい・読みたい作品はありません。"} onAdd={status === "paused" ? undefined : onAdd} />
+      {main.length === 0 && caughtUp.length === 0 ? (
+        <Empty text={EMPTY_TEXT[tab]} onAdd={tab === "paused" ? undefined : onAdd} />
       ) : (
-        <section className="card list-card">
-          <ul className="work-list">
-            {list.map((w) => (
-              <WorkCard key={w.id} work={w} {...handlers} />
-            ))}
-          </ul>
-        </section>
+        <>
+          {main.length > 0 && (
+            <section className="card list-card">
+              {tab === "reading" && <p className="muted small pad">{main.length}作品（題名順）</p>}
+              <ul className="work-list">
+                {main.map((w) => (
+                  <WorkCard key={w.id} work={w} {...handlers} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {main.length === 0 && tab === "following" && <p className="muted small center">いま見る・読むものはありません。</p>}
+          {caughtUp.length > 0 && (
+            <section className="card list-card">
+              <button type="button" className="list-head link-head" aria-expanded={caughtUpOpen} onClick={() => setCaughtUpOpen(!caughtUpOpen)}>
+                <h2>追いついている（{caughtUp.length}作品）</h2>
+                <Icon name={caughtUpOpen ? "chevron-up" : "chevron-down"} size={18} />
+              </button>
+              {caughtUpOpen && (
+                <ul className="work-list">
+                  {caughtUp.map((w) => (
+                    <WorkCard key={w.id} work={w} {...handlers} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </>
       )}
       <div className="fab-space" />
     </>

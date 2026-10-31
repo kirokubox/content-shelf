@@ -166,3 +166,28 @@ export function markNewVolume(work: Work, now: string = nowIso()): Work {
   const base = Math.max(availableCount(work, "9999-12-31") ?? 0, ownedMax(work), work.progress ?? 0);
   return withAutoStatus({ ...work, latestKnown: base + 1, finished: work.finished === true ? false : work.finished, updatedAt: now, touchedAt: now }, now);
 }
+
+export type ContinueGroup = "following" | "reading";
+
+/**
+ * 続きタブの置き場（2026-11-01 本人と認識合わせ）。
+ * 追っている＝今期のアニメ・ドラマ・週刊誌と、新刊を買うマンガ。読みかけ＝新刊を買う印のない進行中のマンガ（再読中も）。
+ * 進行中でないもの・続きを数えないものは null
+ */
+export function continueGroup(work: Work): ContinueGroup | null {
+  if (work.status !== "active") return null;
+  const kind = progressKindOf(work);
+  if (kind === "none") return null;
+  if (work.medium === "manga") return work.buying ? "following" : "reading";
+  return "following";
+}
+
+/** 次にやることがある（未消化・未購入がある）か */
+export function hasNext(work: Work, today: string): boolean {
+  return (unconsumedCount(work, today) ?? 0) > 0 || unpurchasedCount(work) > 0;
+}
+
+/** 再読・再視聴：記録はそのまま、位置を最初に戻して進行中へ */
+export function startAgain(work: Work, now: string = nowIso()): Work {
+  return { ...work, status: "active", progress: null, completedAt: null, touchedAt: now, updatedAt: now };
+}

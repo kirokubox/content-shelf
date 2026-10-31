@@ -7,7 +7,7 @@ import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogSheet } from "./LogSheet";
-import { markBoughtNext, markNewVolume, progressKindOf, stepForward, withAutoStatus } from "./progressLogic";
+import { markBoughtNext, markNewVolume, progressKindOf, startAgain, stepForward, withAutoStatus } from "./progressLogic";
 import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
@@ -354,6 +354,10 @@ export default function App() {
             onDelete={() => setConfirmDelete(w)}
             onBought={() => bought(w)}
             onNewVolume={() => newVolume(w)}
+            onStartAgain={() => {
+              commit({ works: [startAgain(w)] });
+              showToast(w.medium === "manga" ? "読みかけに戻しました（記録は残っています）" : "続きに戻しました（記録は残っています）", 4000, { label: "取り消す", onClick: () => commit({ works: [{ ...w, updatedAt: nowIso() }] }) });
+            }}
           />
         );
       })}

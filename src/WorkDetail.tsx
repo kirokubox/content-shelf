@@ -27,6 +27,7 @@ interface Props {
   onDelete: () => void;
   onBought: () => void;
   onNewVolume: () => void;
+  onStartAgain: () => void;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -39,7 +40,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume }: Props) {
+export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume, onStartAgain }: Props) {
   const unpurchased = unpurchasedCount(work);
   const [menu, setMenu] = useState(false);
   const kind = progressKindOf(work);
@@ -47,7 +48,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   const statusItems: { label: string; onClick: () => void; danger?: boolean }[] = [];
   if (kind !== "none") {
-    if (work.status !== "active") statusItems.push({ label: work.status === "done" ? "続きに戻す" : "進行中にする", onClick: () => onSetStatus("active") });
+    if (work.status === "done") statusItems.push({ label: work.medium === "manga" ? "もう一度読む（最初から）" : "もう一度見る（最初から）", onClick: onStartAgain });
+    if (work.status !== "active") statusItems.push({ label: work.status === "done" ? "続きに戻す（今の位置のまま）" : "進行中にする", onClick: () => onSetStatus("active") });
     if (work.status === "active") statusItems.push({ label: "休止にする", onClick: () => onSetStatus("paused") });
     if (work.status !== "done") statusItems.push({ label: "最後まで見た・読んだ（記録へ）", onClick: () => onSetStatus("done") });
   } else {

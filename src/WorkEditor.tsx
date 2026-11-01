@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { MEDIUM_LABEL, WEEKDAY_LABEL, doneWord, peopleLabel, statusWord } from "./constants";
-import { formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
+import { MEDIUM_LABEL, PLATFORMS, WEEKDAY_LABEL, doneWord, hasOngoingStatus, peopleLabel, statusWord } from "./constants";
+import { dateKeyFromInput, formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
+import { DateField, PlaceField, SegRow } from "./formParts";
+import type { PrecisionChoice } from "./formParts";
 import { Icon } from "./Icon";
 import { progressKindOf, withAutoStatus } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
@@ -8,7 +10,7 @@ import { airedFromAnilist, seasonLabelOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
-import type { DataSet, Franchise, Log, Medium, OwnedMedium, PaperPlace, Person, VideoOwned, VolumeRange, Work, WorkStatus } from "./types";
+import type { ClearLevel, DataSet, Franchise, Log, Medium, OwnFormat, OwnedMedium, PaperPlace, Person, VideoOwned, VolumeRange, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 import { emptyWork, newLog } from "./workFactory";
 
@@ -57,20 +59,15 @@ const VIDEO_CHOICES: { value: VideoOwned; label: string }[] = [
   { value: "digital", label: "配信" },
 ];
 
-/** 横並びの選択（セグメント）。項目名は左に置いて縦を短くする */
-function SegRow<T>({ label, value, choices, onChange }: { label: string; value: T; choices: readonly { value: T; label: string }[]; onChange: (v: T) => void }) {
-  return (
-    <div className="seg-row">
-      <span className="field-label">{label}</span>
-      <div className="segmented" role="radiogroup" aria-label={label}>
-        {choices.map((c) => (
-          <button key={String(c.value)} type="button" role="radio" aria-checked={value === c.value} className={`seg${value === c.value ? " on" : ""}`} onClick={() => onChange(c.value)}>
-            {c.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+const CLEAR_CHOICES: { value: ClearLevel; label: string }[] = [
+  { value: "clear", label: "クリア" },
+  { value: "complete", label: "やりこみ" },
+  { value: "partway", label: "途中まで" },
+];
+/** 持っている形の選択肢（ゲーム・小説） */
+function formatChoices(medium: Medium): { value: OwnFormat; label: string }[] {
+  if (medium === "game") return [{ value: null, label: "なし" }, { value: "package", label: "パッケージ" }, { value: "download", label: "ダウンロード" }];
+  return [{ value: null, label: "なし" }, { value: "tankobon", label: "単行本" }, { value: "bunko", label: "文庫" }, { value: "ebook", label: "電子" }];
 }
 
 interface Props {
@@ -100,6 +97,9 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
   const [skipDraft, setSkipDraft] = useState("");
   // 新規の映画・小説などは、その場で「見た記録」も付けられる
   const [viewDate, setViewDate] = useState(today);
+  const [viewPrecision, setViewPrecision] = useState<PrecisionChoice>("day");
+  // ドラマの話数は、視聴中・中断のとき以外はたたむ（昔のドラマは「視聴済み」だけで十分。2026-11-01 本人）
+  const [episodesOpen, setEpisodesOpen] = useState(() => w.medium !== "drama" || w.progress !== null || w.total !== null || w.latestKnown !== null || w.schedule !== null);
   const [viewNote, setViewNote] = useState("");
   const [viewRating, setViewRating] = useState<number | null>(null);
   const [viewPlace, setViewPlace] = useState("");
@@ -145,7 +145,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         medium: m,
         owned: m === "manga" ? cur.owned ?? { known: false, ranges: [], medium: null, place: null } : null,
         schedule: m === "anime" || m === "drama" || m === "magazine" ? cur.schedule : null,
-        status: progressKindOf({ medium: m }) === "none" && (cur.status === "active" || cur.status === "paused") ? "done" : cur.status,
+        status: progressKindOf({ medium: m }) === "none" && !hasOngoingStatus(m) && (cur.status === "active" || cur.status === "paused") ? "done" : cur.status,
       }),
     );
 
@@ -182,6 +182,10 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       latestKnown: kind === "episode" && scheduleOn ? null : kind === "episode" || kind === "volume" ? latest : null,
       schedule: w.schedule ? { ...w.schedule, firstNumber: kind === "issue" ? 1 : (firstNumber as number) } : null,
       owned: w.owned ? { ...w.owned, ranges, known: w.owned.known || ranges.length > 0 } : null,
+      platform: w.medium === "game" ? w.platform.trim() : "",
+      clearLevel: w.medium === "game" ? w.clearLevel : null,
+      ownFormat: w.medium === "game" || w.medium === "novel" ? w.ownFormat : null,
+      isOriginal: franchiseText.trim() ? w.isOriginal : false,
       updatedAt: now,
       touchedAt: isNew ? now : w.touchedAt,
     };
@@ -189,15 +193,20 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
     if (next.status !== "done") next = { ...next, completedAt: null };
     next = withAutoStatus(next, now);
     let firstLog: Log | null = null;
-    if (isNew && kind === "none" && next.status !== "wish") {
-      if (!isDateKey(viewDate)) return setError("見た日を選んでください");
-      firstLog = newLog({ workId: next.id, kind: "view", date: viewDate, note: viewNote.trim(), rating: viewRating, place: viewPlace.trim() }, now);
-      next = { ...next, status: "done", completedAt: next.completedAt ?? now };
+    if (isNew && kind === "none" && next.status === "done") {
+      if (viewPrecision !== "none" || viewNote.trim() || viewRating) {
+        const p = viewPrecision === "none" ? null : viewPrecision;
+        const date = p ? dateKeyFromInput(viewDate, p) : null;
+        if (!date || !p) return setError(viewPrecision === "year" ? "年を4桁で入れてください（例：2015）" : viewPrecision === "none" ? "感想・星を残すときは日付（年だけでも可）を入れてください" : `${doneWord(w.medium)}日を選んでください`);
+        if (date > today) return setError("先の日付は入れられません");
+        firstLog = newLog({ workId: next.id, kind: "view", date, datePrecision: p, note: viewNote.trim(), rating: viewRating, place: viewPlace.trim() }, now);
+      }
     }
     onSave(next, firstLog, { franchises: fr.created, people: pp.created });
   };
 
-  const statusChoices: WorkStatus[] = kind === "none" ? ["done", "wish"] : ["active", "wish", "paused", "done"];
+  const statusChoices: WorkStatus[] = kind === "none" && !hasOngoingStatus(w.medium) ? ["done", "wish"] : ["active", "wish", "paused", "done"];
+  const showEpisodes = kind !== "episode" || episodesOpen || w.status === "active" || w.status === "paused";
   const removePerson = (n: string) => setPeople(people.filter((x) => x !== n));
 
   return (
@@ -257,7 +266,13 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       </div>
 
       {/* 続き：数字は横に並べる */}
-      {(kind === "episode" || kind === "volume") && (
+      {kind === "episode" && !showEpisodes && (
+        <button type="button" className="link-row" onClick={() => setEpisodesOpen(true)}>
+          <span>話数も入れる</span>
+          <Icon name="chevron-down" size={18} />
+        </button>
+      )}
+      {(kind === "volume" || (kind === "episode" && showEpisodes)) && (
         <div className="form card compact">
           <div className={kind === "episode" && scheduleOn ? "two-col" : "three-col"}>
             <label className="field">
@@ -295,7 +310,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       )}
 
       {/* 毎週の放送・発売 */}
-      {(kind === "issue" || (kind === "episode" && scheduleOn)) && w.schedule && (
+      {(kind === "issue" || (kind === "episode" && scheduleOn && showEpisodes)) && w.schedule && (
         <div className="form card compact">
           <div className="two-col">
             <label className="field">
@@ -352,6 +367,46 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </div>
       )}
 
+      {/* ゲーム：ハード・持っている形・どこまで */}
+      {w.medium === "game" && (
+        <div className="form card compact">
+          <div className="two-col">
+            <label className="field">
+              <span className="field-label">ハード</span>
+              <input className="text-input" list="platform-list" value={w.platform} onChange={(e) => set({ platform: e.target.value })} placeholder="Switch・スマホなど" />
+              <datalist id="platform-list">
+                {PLATFORMS.map((x) => <option key={x} value={x} />)}
+              </datalist>
+            </label>
+            <label className="field">
+              <span className="field-label">持っている形</span>
+              <select className="text-input" value={w.ownFormat ?? ""} onChange={(e) => set({ ownFormat: (e.target.value || null) as OwnFormat })}>
+                {formatChoices("game").map((c) => <option key={String(c.value)} value={c.value ?? ""}>{c.label}</option>)}
+              </select>
+            </label>
+          </div>
+          {(w.status === "done" || w.status === "paused") && <SegRow label="どこまで" value={w.clearLevel} choices={CLEAR_CHOICES} onChange={(v) => set({ clearLevel: v })} clearValue={null} />}
+        </div>
+      )}
+
+      {/* 小説：巻・編と持っている形（シリーズは親作品で） */}
+      {w.medium === "novel" && (
+        <div className="form card compact">
+          <div className="two-col">
+            <label className="field">
+              <span className="field-label">巻・編</span>
+              <input className="text-input" value={w.seasonLabel} onChange={(e) => set({ seasonLabel: e.target.value })} placeholder="例：上巻、2" />
+            </label>
+            <label className="field">
+              <span className="field-label">持っている形</span>
+              <select className="text-input" value={w.ownFormat ?? ""} onChange={(e) => set({ ownFormat: (e.target.value || null) as OwnFormat })}>
+                {formatChoices("novel").map((c) => <option key={String(c.value)} value={c.value ?? ""}>{c.label}</option>)}
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
+
       {/* マンガの所持 */}
       {w.owned && (
         <div className="form card compact">
@@ -377,19 +432,14 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </div>
       )}
 
-      {/* 新規の単発もの：その場で見た記録 */}
-      {isNew && kind === "none" && w.status !== "wish" && (
+      {/* 新規の単発もの：その場で見た記録（昔の作品は年だけ・不明でもよい） */}
+      {isNew && kind === "none" && w.status === "done" && (
         <div className="form card compact">
           <div className="two-col">
-            <label className="field">
-              <span className="field-label">{doneWord(w.medium)}日</span>
-              <input className="text-input" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} />
-            </label>
-            <label className="field">
-              <span className="field-label">{w.medium === "live" ? "会場" : "どこで"}</span>
-              <input className="text-input" value={viewPlace} onChange={(e) => setViewPlace(e.target.value)} placeholder={w.medium === "live" ? "例：日本武道館" : "映画館・配信など"} />
-            </label>
+            <DateField label={`${doneWord(w.medium)}日`} value={viewDate} precision={viewPrecision} today={today} allowUnknown onChange={(v, p) => { setViewDate(v); setViewPrecision(p); }} />
+            {w.medium !== "movie" ? <PlaceField medium={w.medium} value={viewPlace} onChange={setViewPlace} /> : <span />}
           </div>
+          {w.medium === "movie" && <PlaceField medium="movie" value={viewPlace} onChange={setViewPlace} />}
           <div className="inline-row">
             <span className="field-label">星</span>
             <Stars value={viewRating} onChange={setViewRating} />
@@ -429,6 +479,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             </datalist>
           </div>
         </div>
+        {franchiseText.trim() && (
+          <label className="toggle-row">
+            <span className="toggle-text">
+              原作
+              <span className="field-hint">このシリーズの原作にあたる作品（小説・マンガなど）</span>
+            </span>
+            <input type="checkbox" checked={w.isOriginal} onChange={(e) => set({ isOriginal: e.target.checked })} />
+          </label>
+        )}
         {people.length > 0 && (
           <div className="chips">
             {people.map((n) => (

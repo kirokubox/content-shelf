@@ -1,6 +1,6 @@
 // コンテンツ棚のデータの形。仕様の正本：05_開発・Webアプリ/18_コンテンツ棚/181_コンテンツ棚_初期仕様.md
 
-export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "live", "video", "other"] as const;
+export const MEDIA = ["anime", "drama", "magazine", "manga", "novel", "movie", "game", "live", "video", "other"] as const;
 export type Medium = (typeof MEDIA)[number];
 
 /** 続きの数え方。メディアから決まる */
@@ -96,7 +96,20 @@ export interface Work extends Base {
   buying: boolean;
   /** LIVE・LIVE映像：映像を持っている（v0.5.0） */
   videoOwned: VideoOwned;
+  /** ゲーム：遊んだハード（Switch・スマホなど。v0.8.0） */
+  platform: string;
+  /** ゲーム：どこまで遊んだか（v0.8.0） */
+  clearLevel: ClearLevel;
+  /** 持っている形：ゲーム＝パッケージ／ダウンロード、小説＝単行本／文庫／電子（v0.8.0） */
+  ownFormat: OwnFormat;
+  /** 原作の印。親作品の中で原作にあたる作品（v0.8.0） */
+  isOriginal: boolean;
 }
+
+export type ClearLevel = "clear" | "complete" | "partway" | null;
+export type OwnFormat = "package" | "download" | "tankobon" | "bunko" | "ebook" | null;
+/** 記録の日付の細かさ。year＝年だけ（date は YYYY-01-01）、month＝年月だけ（YYYY-MM-01） */
+export type DatePrecision = "day" | "month" | "year";
 
 export type VideoOwned = "dvd" | "bluray" | "digital" | null;
 
@@ -120,6 +133,8 @@ export interface Log extends Base {
   place: string;
   /** 取り込み元（かぞえ帳など）。手で付けた記録は空 */
   source: string;
+  /** 日付の細かさ（無ければ day。v0.8.0） */
+  datePrecision?: DatePrecision;
 }
 
 /** 人物（俳優・女優・アーティストなど）。手で登録する（仕様181 §2） */

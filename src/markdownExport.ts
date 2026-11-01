@@ -1,5 +1,5 @@
 // 全記録をテキスト（Markdown）で書き出す。好きなもの台帳やAIの振り返りの材料（仕様181 §6.1）
-import { MEDIUM_LABEL, STATUS_LABEL } from "./constants.js";
+import { CLEAR_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, statusWord } from "./constants.js";
 import { isoToDateKey } from "./dateUtils.js";
 import { personNames } from "./linkLogic.js";
 import { progressKindOf } from "./progressLogic.js";
@@ -13,7 +13,8 @@ function stars(n: number | null): string {
 function logLine(work: Work, l: Log): string {
   const kind = progressKindOf(work);
   const what = l.position ? (kind === "episode" ? `第${l.position}話` : `${l.position}巻`) : l.issueDate ? `${l.issueDate}発売の号` : "";
-  const parts = [l.date, what, l.place, stars(l.rating)].filter(Boolean).join("　");
+  const date = l.datePrecision === "year" ? l.date.slice(0, 4) : l.datePrecision === "month" ? l.date.slice(0, 7) : l.date;
+  const parts = [date, what, l.place, stars(l.rating)].filter(Boolean).join("　");
   const note = l.note ? `\n    - ${l.note.replace(/\n+/g, "\n      ")}` : "";
   return `  - ${parts}${note}`;
 }
@@ -39,7 +40,11 @@ export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from:
     for (const w of works) {
       const fr = w.franchiseId ? data.franchises.find((f) => f.id === w.franchiseId)?.title : undefined;
       const people = personNames(data, w.personIds);
-      const head = [w.title + (w.seasonLabel ? ` ${w.seasonLabel}` : ""), STATUS_LABEL[w.status]];
+      const head = [w.title + (w.seasonLabel ? ` ${w.seasonLabel}` : ""), statusWord(w.medium, w.status)];
+      if (w.isOriginal) head.push("原作");
+      if (w.platform) head.push(w.platform);
+      if (w.clearLevel) head.push(CLEAR_LABEL[w.clearLevel]);
+      if (w.ownFormat) head.push(OWN_FORMAT_LABEL[w.ownFormat]);
       if (w.progress) head.push(progressKindOf(w) === "episode" ? `第${w.progress}話まで` : `${w.progress}巻まで`);
       if (w.status === "done" && w.completedAt) head.push(`記録へ ${isoToDateKey(w.completedAt)}`);
       lines.push(`- ${head.join("｜")}`);

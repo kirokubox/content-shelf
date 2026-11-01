@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { MEDIUM_LABEL, statusWord } from "./constants";
-import { formatDateShort } from "./dateUtils";
+import { formatLogDate } from "./dateUtils";
 import { worksOfFranchise, worksOfPerson } from "./linkLogic";
 import { positionLabel, progressKindOf } from "./progressLogic";
 import { MoreMenu, Screen } from "./Screen";
-import type { DataSet, Franchise, Person, Work, WorkStatus } from "./types";
+import type { DataSet, Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 
-function lastDateOf(data: DataSet, workId: string): string | null {
-  let last: string | null = null;
-  for (const l of data.logs) if (l.deletedAt === null && l.workId === workId && (last === null || l.date > last)) last = l.date;
+function lastLogOf(data: DataSet, workId: string): Log | null {
+  let last: Log | null = null;
+  for (const l of data.logs) if (l.deletedAt === null && l.workId === workId && (last === null || l.date > last.date)) last = l;
   return last;
 }
+const lastDateOf = (data: DataSet, workId: string): string | null => lastLogOf(data, workId)?.date ?? null;
 
 /** 一覧の2行目：状態と位置（見終えた作品・見たい作品は状態だけ） */
 function subText(w: Work): string {
@@ -19,13 +20,13 @@ function subText(w: Work): string {
   return [statusWord(w.medium, w.status), pos].filter(Boolean).join("・");
 }
 
-function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void }) {
+function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void; originalFirst?: boolean }) {
   // 楽しんだ日の新しい順（記録が無いものは最後に種類・題名の順）
-  const sorted = [...works].sort((a, b) => (lastDateOf(data, b.id) ?? "").localeCompare(lastDateOf(data, a.id) ?? "") || MEDIA.indexOf(a.medium) - MEDIA.indexOf(b.medium) || a.title.localeCompare(b.title, "ja"));
+  const sorted = [...works].sort((a, b) => (originalFirst ? Number(b.isOriginal) - Number(a.isOriginal) : 0) || (lastDateOf(data, b.id) ?? "").localeCompare(lastDateOf(data, a.id) ?? "") || MEDIA.indexOf(a.medium) - MEDIA.indexOf(b.medium) || a.title.localeCompare(b.title, "ja"));
   return (
     <ul className="list">
       {sorted.map((w) => {
-        const last = lastDateOf(data, w.id);
+        const last = lastLogOf(data, w.id);
         return (
           <li key={w.id}>
             <button type="button" className="list-row" onClick={() => onOpen(w)}>
@@ -37,10 +38,11 @@ function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpe
                 </span>
                 <span className="list-sub">
                   <span className="medium-tag">{MEDIUM_LABEL[w.medium]}</span>
+                  {w.isOriginal && <span className="medium-tag original-tag">原作</span>}
                   {subText(w)}
                 </span>
               </span>
-              {last && <span className="list-sub">{formatDateShort(last)}</span>}
+              {last && <span className="list-sub">{formatLogDate(last.date, last.datePrecision, undefined, true)}</span>}
             </button>
           </li>
         );
@@ -52,9 +54,9 @@ function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpe
 type Filter = "all" | WorkStatus;
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "すべて" },
-  { value: "done", label: "見た・読んだ" },
+  { value: "done", label: "済み" },
   { value: "active", label: "途中" },
-  { value: "wish", label: "見たい" },
+  { value: "wish", label: "予定" },
 ];
 
 function applyFilter(works: Work[], f: Filter): Work[] {
@@ -96,7 +98,7 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
           <h2>このシリーズの作品</h2>
           <span className="muted small">{works.length}件</span>
         </div>
-        {works.length === 0 ? <p className="muted pad">作品はありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} />}
+        {works.length === 0 ? <p className="muted pad">作品はありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} originalFirst />}
       </section>
     </Screen>
   );
@@ -122,7 +124,7 @@ export function PersonView({ data, person, onBack, onOpen, onRename, onDelete }:
         <section className="card">
           <dl className="summary-sub person-summary">
             <div>
-              <dt>{works.some((w) => w.medium === "live") ? "見た・行った" : "見た・読んだ"}</dt>
+              <dt>済み</dt>
               <dd>{works.filter((w) => w.status === "done").length}</dd>
             </div>
             {byMedium.slice(0, 3).map((x) => (

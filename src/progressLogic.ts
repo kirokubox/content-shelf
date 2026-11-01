@@ -176,6 +176,8 @@ export type ContinueGroup = "following" | "reading";
  */
 export function continueGroup(work: Work): ContinueGroup | null {
   if (work.status !== "active") return null;
+  // プレイ中のゲーム（ポケポケなど）は「追っている」に並べる
+  if (work.medium === "game") return "following";
   const kind = progressKindOf(work);
   if (kind === "none") return null;
   if (work.medium === "manga") return work.buying ? "following" : "reading";

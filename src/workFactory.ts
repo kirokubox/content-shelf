@@ -25,7 +25,7 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     seasonLabel: "",
     franchiseId: null,
     // 映画・小説などの単発ものは「見た・読んだ」を既定にする（続きを数えないため）
-    status: medium === "movie" || medium === "novel" || medium === "live" || medium === "video" || medium === "other" ? "done" : "active",
+    status: medium === "movie" || medium === "novel" || medium === "game" || medium === "live" || medium === "video" || medium === "other" ? "done" : "active",
     finished: null,
     total: null,
     latestKnown: null,
@@ -45,6 +45,10 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     infoCheckedAt: null,
     buying: false,
     videoOwned: null,
+    platform: "",
+    clearLevel: null,
+    ownFormat: null,
+    isOriginal: false,
   };
 }
 

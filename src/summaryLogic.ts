@@ -31,6 +31,8 @@ export function summarize(data: DataSet, period: Period, today: string): MediumS
   const map = new Map<Medium, { works: Set<string>; count: number }>();
   for (const l of logs) {
     if (l.date < from || l.date > to) continue;
+    // 年だけの記録は今月の集計に入れない（1月1日として持っているため）
+    if (period === "month" && l.datePrecision === "year") continue;
     const m = mediumOf.get(l.workId)!;
     const cur = map.get(m) ?? { works: new Set<string>(), count: 0 };
     cur.works.add(l.workId);
@@ -55,7 +57,7 @@ export function monthlyCounts(data: DataSet, year: string): number[] {
   const out = Array.from({ length: 12 }, () => 0);
   const { logs } = liveLogs(data);
   for (const l of logs) {
-    if (l.date.slice(0, 4) !== year) continue;
+    if (l.date.slice(0, 4) !== year || l.datePrecision === "year") continue;
     out[Number(l.date.slice(5, 7)) - 1] += 1;
   }
   return out;

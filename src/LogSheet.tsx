@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { BottomSheet } from "./BottomSheet";
 import { doneWord } from "./constants";
-import { isDateKey, nowIso } from "./dateUtils";
+import { dateKeyFromInput, inputFromDateKey, nowIso } from "./dateUtils";
+import { DateField, PlaceField, hasPlace } from "./formParts";
+import type { PrecisionChoice } from "./formParts";
 import { progressKindOf } from "./progressLogic";
 import { Stars } from "./Screen";
-import type { Log, Work } from "./types";
+import type { DatePrecision, Log, Work } from "./types";
 import { newLog } from "./workFactory";
 
 interface Props {
@@ -24,7 +26,9 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
   const kind = progressKindOf(work);
   const isProgress = (log?.kind ?? newKind) === "progress";
   const defaultPosition = isProgress && (kind === "episode" || kind === "volume") ? String((work.progress ?? 0) + 1) : "";
-  const [date, setDate] = useState(log?.date ?? today);
+  const initialPrecision: DatePrecision = log?.datePrecision ?? "day";
+  const [precision, setPrecision] = useState<DatePrecision>(initialPrecision);
+  const [dateText, setDateText] = useState(inputFromDateKey(log?.date ?? today, initialPrecision));
   const [position, setPosition] = useState(log?.position?.toString() ?? (log ? "" : defaultPosition));
   const [note, setNote] = useState(log?.note ?? "");
   const [rating, setRating] = useState<number | null>(log?.rating ?? null);
@@ -33,13 +37,15 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
   const showPosition = kind === "episode" || kind === "volume";
 
   const save = () => {
-    if (!isDateKey(date)) return setError("日付を選んでください");
+    const date = dateKeyFromInput(dateText, precision);
+    if (!date) return setError(precision === "year" ? "年を4桁で入れてください（例：2015）" : "日付を選んでください");
+    if (date > today) return setError("先の日付は入れられません");
     const posText = position.trim().normalize("NFKC");
     const pos = posText ? Number(posText) : null;
     if (pos !== null && (!Number.isInteger(pos) || pos < 1)) return setError("第何話・何巻は1以上の整数で入れてください");
     const now = nowIso();
     const base = log ?? newLog({ workId: work.id, kind: newKind, date }, now);
-    onSave({ ...base, date, position: showPosition ? pos : base.position, note: note.trim(), rating, place: place.trim(), updatedAt: now });
+    onSave({ ...base, date, datePrecision: precision, position: showPosition ? pos : base.position, note: note.trim(), rating, place: place.trim(), updatedAt: now });
   };
 
   const title = log ? "記録を編集" : isProgress ? `${work.title}：日付を選んで記録` : `${doneWord(work.medium)}記録を追加`;
@@ -47,22 +53,17 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
     <BottomSheet title={title} onClose={onClose}>
       <div className="form compact">
         <div className="two-col">
-          <label className="field">
-            <span className="field-label">日付</span>
-            <input className="text-input" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
-          </label>
+          <DateField label="日付" value={dateText} precision={precision} today={today} onChange={(v, p: PrecisionChoice) => { setDateText(v); if (p !== "none") setPrecision(p); }} />
           {showPosition ? (
             <label className="field">
               <span className="field-label">{kind === "episode" ? "第何話" : "何巻"}</span>
               <input className="text-input" inputMode="numeric" value={position} onChange={(e) => setPosition(e.target.value)} />
             </label>
-          ) : !isProgress ? (
-            <label className="field">
-              <span className="field-label">{work.medium === "live" ? "会場" : "どこで"}</span>
-              <input className="text-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={work.medium === "live" ? "例：日本武道館" : "映画館・配信・家"} />
-            </label>
+          ) : !isProgress && hasPlace(work.medium) && work.medium !== "movie" ? (
+            <PlaceField medium={work.medium} value={place} onChange={setPlace} />
           ) : <span />}
         </div>
+        {!isProgress && work.medium === "movie" && <PlaceField medium="movie" value={place} onChange={setPlace} />}
         {isProgress && showPosition && !log && <span className="field-hint">保存すると、ここまで見た・読んだことになります。</span>}
         {!isProgress && (
           <div className="inline-row">
@@ -70,10 +71,7 @@ export function LogSheet({ work, log, today, newKind, onClose, onSave, onDelete 
             <Stars value={rating} onChange={setRating} />
           </div>
         )}
-        <label className="field">
-          <span className="field-label">感想（任意）</span>
-          <textarea className="text-input note-input" rows={isProgress ? 2 : 4} value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
+        <textarea className="text-input note-input" rows={isProgress ? 2 : 4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="感想（任意）" aria-label="感想" />
         {error && <p className="field-error">{error}</p>}
       </div>
       <div className="sheet-actions">

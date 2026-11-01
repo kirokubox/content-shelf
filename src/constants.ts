@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.7.0";
+export const APP_VERSION = "0.8.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;
@@ -15,6 +15,7 @@ export const MEDIUM_LABEL: Record<Medium, string> = {
   manga: "マンガ",
   novel: "小説",
   movie: "映画",
+  game: "ゲーム",
   live: "LIVE・フェス",
   video: "LIVE映像",
   other: "その他",
@@ -27,6 +28,7 @@ export const PROGRESS_KIND: Record<Medium, ProgressKind> = {
   manga: "volume",
   novel: "none",
   movie: "none",
+  game: "none",
   live: "none",
   video: "none",
   other: "none",
@@ -40,12 +42,6 @@ export const UNIT_LABEL: Record<ProgressKind, string> = {
   none: "",
 };
 
-export const STATUS_LABEL: Record<WorkStatus, string> = {
-  active: "進行中",
-  paused: "休止中",
-  wish: "見たい・読みたい",
-  done: "記録",
-};
 
 export const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -58,6 +54,7 @@ export function doneWord(medium: Medium): string {
   if (medium === "novel") return "読んだ";
   if (medium === "live") return "行った";
   if (medium === "video") return "見た";
+  if (medium === "game") return "遊んだ";
   return "見た・読んだ";
 }
 
@@ -67,6 +64,7 @@ export function wishWord(medium: Medium): string {
   if (medium === "novel") return "読みたい";
   if (medium === "live") return "行きたい";
   if (medium === "video") return "見たい";
+  if (medium === "game") return "遊びたい";
   return "見たい・読みたい";
 }
 
@@ -75,12 +73,18 @@ export function isReading(medium: Medium): boolean {
   return medium === "manga" || medium === "novel" || medium === "magazine";
 }
 
-/** 状態の言い方を種類に合わせる（マンガ＝読んでる・読んだ、アニメ＝見てる・見た、LIVE＝行った） */
+/** 状態の名前（名詞）。種類に合わせる（2026-11-01 本人「積読みたいな名詞がいい」） */
 export function statusWord(medium: Medium, status: WorkStatus): string {
-  if (status === "paused") return "休止中";
-  if (status === "wish") return medium === "live" ? "行きたい" : isReading(medium) ? "読みたい" : "見たい";
-  if (status === "done") return medium === "live" ? "行った" : isReading(medium) ? "読んだ" : "見た";
-  return isReading(medium) ? "読んでる" : "見てる";
+  if (status === "paused") return "中断";
+  if (medium === "live") return status === "wish" ? "参戦予定" : "参戦済み";
+  if (medium === "game") return { active: "プレイ中", wish: "積みゲー", done: "プレイ済み" }[status];
+  if (isReading(medium)) return { active: "読書中", wish: "積読", done: "読了" }[status];
+  return { active: "視聴中", wish: "視聴予定", done: "視聴済み" }[status];
+}
+
+/** 続きを数えないが「途中・中断」を持つ種類（ゲーム） */
+export function hasOngoingStatus(medium: Medium): boolean {
+  return medium === "game";
 }
 
 /** 人物の欄の名前（映画・ドラマ＝出演、マンガ・小説＝作者） */
@@ -88,10 +92,16 @@ export function peopleLabel(medium: Medium): string {
   if (medium === "live") return "出演者";
   if (medium === "manga" || medium === "novel") return "作者";
   if (medium === "movie" || medium === "drama" || medium === "video") return "出演";
+  if (medium === "game") return "開発・メーカー";
   return "人物";
 }
 
 /** AniListの情報を自動で確かめる間隔（12時間） */
 export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
+export const CLEAR_LABEL = { clear: "クリア", complete: "やりこみ", partway: "途中まで" } as const;
+export const OWN_FORMAT_LABEL = { package: "パッケージ", download: "ダウンロード", tankobon: "単行本", bunko: "文庫", ebook: "電子" } as const;
+/** ハードの候補（自由入力もできる） */
+export const PLATFORMS = ["Switch", "スマホ", "PS5", "PS4", "PC", "3DS", "DS", "Wii", "PS2", "ゲームボーイ"];
 
 export const VIDEO_OWNED_LABEL = { dvd: "DVD", bluray: "Blu-ray", digital: "配信・デジタル" } as const;

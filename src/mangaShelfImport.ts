@@ -79,6 +79,10 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     infoCheckedAt: null,
     buying: false,
     videoOwned: null,
+    platform: "",
+    clearLevel: null,
+    ownFormat: null,
+    isOriginal: false,
   };
 }
 

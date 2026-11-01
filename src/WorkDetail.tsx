@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, peopleLabel, statusWord, wishWord } from "./constants";
-import { formatDate, formatDateShort, isoToDateKey, weekdayOf } from "./dateUtils";
+import { CLEAR_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, peopleLabel, statusWord, wishWord } from "./constants";
+import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { availableCount, latestLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
@@ -52,6 +52,9 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     if (work.status !== "active") statusItems.push({ label: work.status === "done" ? "続きに戻す（今の位置のまま）" : "進行中にする", onClick: () => onSetStatus("active") });
     if (work.status === "active") statusItems.push({ label: "休止にする", onClick: () => onSetStatus("paused") });
     if (work.status !== "done") statusItems.push({ label: work.medium === "manga" ? "読み終えた（記録へ）" : "見終えた（記録へ）", onClick: () => onSetStatus("done") });
+  } else if (work.medium === "game") {
+    // ゲームは続きを数えないが、プレイ中・中断を持つ
+    for (const s of ["active", "paused", "done", "wish"] as const) if (work.status !== s) statusItems.push({ label: `${statusWord(work.medium, s)}にする`, onClick: () => onSetStatus(s) });
   } else {
     if (work.status === "wish") statusItems.push({ label: `${doneWord(work.medium)}にする`, onClick: () => onSetStatus("done") });
     else statusItems.push({ label: `${wishWord(work.medium)}に戻す`, onClick: () => onSetStatus("wish") });
@@ -67,7 +70,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const pct = available ? Math.min(100, Math.round(((work.progress ?? 0) / available) * 100)) : 0;
   const ownedText = work.owned?.medium ? OWNED_LABEL[work.owned.medium] + (work.owned.medium === "paper" && work.owned.place ? `（${PLACE_LABEL[work.owned.place]}）` : "") : null;
   const doneAt = kind !== "none" && work.status === "done" && work.completedAt ? work.completedAt : null;
-  const hasInfo = Boolean(schedule || work.buying || work.owned?.ranges.length || ownedText || work.edition || work.videoOwned || doneAt || people.length > 0 || work.memo);
+  const hasInfo = Boolean(work.platform || work.clearLevel || work.ownFormat || schedule || work.buying || work.owned?.ranges.length || ownedText || work.edition || work.videoOwned || doneAt || people.length > 0 || work.memo);
   return (
     <Screen
       title={work.title}
@@ -90,6 +93,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
             <div className="hero-tags">
               <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
               <span className={`status-pill s-${work.status}`}>{statusWord(work.medium, work.status)}</span>
+              {work.isOriginal && <span className="status-pill s-original">原作</span>}
             </div>
             {franchise && (
               <button type="button" className="hero-link" onClick={() => onOpenFranchise(franchise)}>
@@ -156,6 +160,9 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="持っている巻" value={work.owned?.ranges.length ? `${rangesText(work.owned.ranges)}巻` : null} />
           <Row label="形" value={ownedText} />
           <Row label="版" value={work.edition} />
+          <Row label="ハード" value={work.platform} />
+          <Row label="どこまで" value={work.clearLevel ? CLEAR_LABEL[work.clearLevel] : null} />
+          <Row label="持っている形" value={work.ownFormat ? OWN_FORMAT_LABEL[work.ownFormat] : null} />
           <Row label="映像" value={work.videoOwned ? `${VIDEO_OWNED_LABEL[work.videoOwned]}を持っている` : null} />
           <Row label={work.medium === "manga" ? "読み終えた日" : "見終えた日"} value={doneAt ? formatDate(isoToDateKey(doneAt), today) : null} />
           <Row
@@ -201,7 +208,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
                 <button type="button" className="list-row" onClick={() => onEditLog(l)}>
                   <span className="list-main">
                     <span className="list-name">
-                      {formatDate(l.date, today)}
+                      {formatLogDate(l.date, l.datePrecision, today)}
                       {l.position ? `　第${l.position}${unit || "回"}` : ""}
                       {l.issueDate ? `　${formatDateShort(l.issueDate)}発売の号` : ""}
                     </span>

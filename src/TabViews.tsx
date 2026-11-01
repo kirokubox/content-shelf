@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { MEDIUM_LABEL, doneWord } from "./constants";
-import { formatDate, formatDateShort, isoToDateKey } from "./dateUtils";
+import { MEDIUM_LABEL, doneWord, statusWord } from "./constants";
+import { formatDate, formatDateShort, formatLogDate, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { Stars } from "./Screen";
 import { countUnit, completedWorks, monthlyCounts, summarize } from "./summaryLogic";
@@ -67,12 +67,12 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
           </span>
           <span className="list-sub">
             <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
-            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : "最後まで見た・読んだ"}
+            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : statusWord(work.medium, "done")}
           </span>
           {log?.note && <span className="list-sub wrap note-excerpt">{log.note}</span>}
         </span>
         <span className="record-side">
-          <span className="list-sub">{formatDateShort(item.date)}</span>
+          <span className="list-sub">{formatLogDate(item.date, item.log?.datePrecision, undefined, true)}</span>
           {log?.rating ? <Stars value={log.rating} /> : null}
         </span>
       </button>
@@ -153,8 +153,8 @@ type ContinueTab = "following" | "reading" | "wish" | "paused";
 const CONTINUE_TABS: { id: ContinueTab; label: string }[] = [
   { id: "following", label: "追っている" },
   { id: "reading", label: "読みかけ" },
-  { id: "wish", label: "見たい" },
-  { id: "paused", label: "休止" },
+  { id: "wish", label: "予定" },
+  { id: "paused", label: "中断" },
 ];
 const EMPTY_TEXT: Record<ContinueTab, string> = {
   following: "追っている作品はありません。今期のアニメ・週刊誌や、「新刊を買う」の印を付けたマンガがここに並びます。",
@@ -281,7 +281,7 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work)
             <li key={r.key}>
               <button type="button" className="grid-tile" onClick={() => onOpen(r.work)}>
                 {r.work.coverUrl ? <img src={r.work.coverUrl} alt="" loading="lazy" /> : <span className="tile-title">{r.work.title}</span>}
-                <span className="tile-date">{formatDateShort(r.date)}</span>
+                <span className="tile-date">{formatLogDate(r.date, r.log?.datePrecision, undefined, true)}</span>
               </button>
             </li>
           ))}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { applyAnilist, fetchAnilistByIds } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { ConfirmSheet } from "./BottomSheet";
-import { MEDIUM_LABEL, REFRESH_INTERVAL_MS } from "./constants";
+import { MEDIUM_LABEL, REFRESH_INTERVAL_MS, statusWord } from "./constants";
 import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
@@ -137,7 +137,7 @@ export default function App() {
   const setStatus = (work: Work, status: WorkStatus) => {
     const now = nowIso();
     commit({ works: [{ ...work, status, completedAt: status === "done" ? work.completedAt ?? now : null, touchedAt: now, updatedAt: now }] });
-    showToast(status === "done" ? "記録へ移しました" : status === "paused" ? "休止にしました" : status === "wish" ? "見たい・読みたいにしました" : "続きに戻しました");
+    showToast(`「${statusWord(work.medium, status)}」にしました`);
   };
 
   const deleteWork = (work: Work) => {

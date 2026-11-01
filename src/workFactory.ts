@@ -49,6 +49,7 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     clearLevel: null,
     ownFormat: null,
     isOriginal: false,
+    shelfPlace: null,
   };
 }
 

@@ -162,7 +162,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="版" value={work.edition} />
           <Row label="ハード" value={work.platform} />
           <Row label="どこまで" value={work.clearLevel ? CLEAR_LABEL[work.clearLevel] : null} />
-          <Row label="持っている形" value={work.ownFormat ? OWN_FORMAT_LABEL[work.ownFormat] : null} />
+          <Row label="持っている形" value={work.ownFormat ? OWN_FORMAT_LABEL[work.ownFormat] + (work.shelfPlace ? `（${PLACE_LABEL[work.shelfPlace]}）` : "") : null} />
           <Row label="映像" value={work.videoOwned ? `${VIDEO_OWNED_LABEL[work.videoOwned]}を持っている` : null} />
           <Row label={work.medium === "manga" ? "読み終えた日" : "見終えた日"} value={doneAt ? formatDate(isoToDateKey(doneAt), today) : null} />
           <Row

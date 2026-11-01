@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.8.0";
+export const APP_VERSION = "0.8.1";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;
@@ -100,7 +100,7 @@ export function peopleLabel(medium: Medium): string {
 export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
 export const CLEAR_LABEL = { clear: "クリア", complete: "やりこみ", partway: "途中まで" } as const;
-export const OWN_FORMAT_LABEL = { package: "パッケージ", download: "ダウンロード", tankobon: "単行本", bunko: "文庫", ebook: "電子" } as const;
+export const OWN_FORMAT_LABEL = { package: "パッケージ", download: "ダウンロード", tankobon: "単行本", bunko: "文庫", tankobon_bunko: "単行本と文庫", ebook: "電子" } as const;
 /** ハードの候補（自由入力もできる） */
 export const PLATFORMS = ["Switch", "スマホ", "PS5", "PS4", "PC", "3DS", "DS", "Wii", "PS2", "ゲームボーイ"];
 

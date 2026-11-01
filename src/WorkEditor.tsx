@@ -67,7 +67,7 @@ const CLEAR_CHOICES: { value: ClearLevel; label: string }[] = [
 /** 持っている形の選択肢（ゲーム・小説） */
 function formatChoices(medium: Medium): { value: OwnFormat; label: string }[] {
   if (medium === "game") return [{ value: null, label: "なし" }, { value: "package", label: "パッケージ" }, { value: "download", label: "ダウンロード" }];
-  return [{ value: null, label: "なし" }, { value: "tankobon", label: "単行本" }, { value: "bunko", label: "文庫" }, { value: "ebook", label: "電子" }];
+  return [{ value: null, label: "なし" }, { value: "tankobon", label: "単行本" }, { value: "bunko", label: "文庫" }, { value: "tankobon_bunko", label: "単行本と文庫" }, { value: "ebook", label: "電子" }];
 }
 
 interface Props {
@@ -185,6 +185,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       platform: w.medium === "game" ? w.platform.trim() : "",
       clearLevel: w.medium === "game" ? w.clearLevel : null,
       ownFormat: w.medium === "game" || w.medium === "novel" ? w.ownFormat : null,
+      shelfPlace: w.medium === "novel" ? w.shelfPlace : null,
       isOriginal: franchiseText.trim() ? w.isOriginal : false,
       updatedAt: now,
       touchedAt: isNew ? now : w.touchedAt,
@@ -404,6 +405,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
               </select>
             </label>
           </div>
+          {w.ownFormat && w.ownFormat !== "ebook" && <SegRow label="置き場所" value={w.shelfPlace} choices={PLACES} onChange={(v) => set({ shelfPlace: v })} />}
         </div>
       )}
 

@@ -104,10 +104,12 @@ export interface Work extends Base {
   ownFormat: OwnFormat;
   /** 原作の印。親作品の中で原作にあたる作品（v0.8.0） */
   isOriginal: boolean;
+  /** 小説の置き場所（自宅・実家など。マンガは owned.place。v0.8.1） */
+  shelfPlace: PaperPlace;
 }
 
 export type ClearLevel = "clear" | "complete" | "partway" | null;
-export type OwnFormat = "package" | "download" | "tankobon" | "bunko" | "ebook" | null;
+export type OwnFormat = "package" | "download" | "tankobon" | "bunko" | "tankobon_bunko" | "ebook" | null;
 /** 記録の日付の細かさ。year＝年だけ（date は YYYY-01-01）、month＝年月だけ（YYYY-MM-01） */
 export type DatePrecision = "day" | "month" | "year";
 

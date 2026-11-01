@@ -83,6 +83,7 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     clearLevel: null,
     ownFormat: null,
     isOriginal: false,
+    shelfPlace: null,
   };
 }
 

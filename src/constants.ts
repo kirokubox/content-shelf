@@ -1,7 +1,7 @@
 import type { Medium, ProgressKind, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.6.0";
+export const APP_VERSION = "0.7.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 2;
@@ -68,6 +68,27 @@ export function wishWord(medium: Medium): string {
   if (medium === "live") return "行きたい";
   if (medium === "video") return "見たい";
   return "見たい・読みたい";
+}
+
+/** 読むもの（マンガ・小説・週刊誌）か */
+export function isReading(medium: Medium): boolean {
+  return medium === "manga" || medium === "novel" || medium === "magazine";
+}
+
+/** 状態の言い方を種類に合わせる（マンガ＝読んでる・読んだ、アニメ＝見てる・見た、LIVE＝行った） */
+export function statusWord(medium: Medium, status: WorkStatus): string {
+  if (status === "paused") return "休止中";
+  if (status === "wish") return medium === "live" ? "行きたい" : isReading(medium) ? "読みたい" : "見たい";
+  if (status === "done") return medium === "live" ? "行った" : isReading(medium) ? "読んだ" : "見た";
+  return isReading(medium) ? "読んでる" : "見てる";
+}
+
+/** 人物の欄の名前（映画・ドラマ＝出演、マンガ・小説＝作者） */
+export function peopleLabel(medium: Medium): string {
+  if (medium === "live") return "出演者";
+  if (medium === "manga" || medium === "novel") return "作者";
+  if (medium === "movie" || medium === "drama" || medium === "video") return "出演";
+  return "人物";
 }
 
 /** AniListの情報を自動で確かめる間隔（12時間） */

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL } from "./constants";
+import { MEDIUM_LABEL, statusWord } from "./constants";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { Screen } from "./Screen";
@@ -69,7 +69,7 @@ export function SearchView({ data, onBack, onOpen, onOpenPerson, onOpenFranchise
                       </span>
                       <span className="list-sub">
                         <span className="medium-tag">{MEDIUM_LABEL[h.work.medium]}</span>
-                        {STATUS_LABEL[h.work.status]}
+                        {statusWord(h.work.medium, h.work.status)}
                       </span>
                       {h.logs.slice(0, 2).map((l) => (
                         <span key={l.id} className="list-sub wrap note-excerpt">

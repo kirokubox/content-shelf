@@ -1,16 +1,22 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL } from "./constants";
+import { MEDIUM_LABEL, statusWord } from "./constants";
 import { formatDateShort } from "./dateUtils";
 import { worksOfFranchise, worksOfPerson } from "./linkLogic";
-import { positionLabel } from "./progressLogic";
+import { positionLabel, progressKindOf } from "./progressLogic";
 import { MoreMenu, Screen } from "./Screen";
-import type { DataSet, Franchise, Person, Work } from "./types";
+import type { DataSet, Franchise, Person, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 
 function lastDateOf(data: DataSet, workId: string): string | null {
   let last: string | null = null;
   for (const l of data.logs) if (l.deletedAt === null && l.workId === workId && (last === null || l.date > last)) last = l.date;
   return last;
+}
+
+/** 一覧の2行目：状態と位置（見終えた作品・見たい作品は状態だけ） */
+function subText(w: Work): string {
+  const pos = progressKindOf(w) !== "none" && (w.status === "active" || w.status === "paused") ? positionLabel(w) : "";
+  return [statusWord(w.medium, w.status), pos].filter(Boolean).join("・");
 }
 
 function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void }) {
@@ -23,6 +29,7 @@ function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpe
         return (
           <li key={w.id}>
             <button type="button" className="list-row" onClick={() => onOpen(w)}>
+              {w.coverUrl ? <img className="cover-thumb" src={w.coverUrl} alt="" loading="lazy" /> : <span className="cover-thumb cover-empty" aria-hidden="true" />}
               <span className="list-main">
                 <span className="list-name">
                   {w.title}
@@ -30,7 +37,7 @@ function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpe
                 </span>
                 <span className="list-sub">
                   <span className="medium-tag">{MEDIUM_LABEL[w.medium]}</span>
-                  {[STATUS_LABEL[w.status], positionLabel(w)].filter(Boolean).join("・")}
+                  {subText(w)}
                 </span>
               </span>
               {last && <span className="list-sub">{formatDateShort(last)}</span>}
@@ -39,6 +46,35 @@ function WorkRows({ data, works, onOpen }: { data: DataSet; works: Work[]; onOpe
         );
       })}
     </ul>
+  );
+}
+
+type Filter = "all" | WorkStatus;
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: "all", label: "すべて" },
+  { value: "done", label: "見た・読んだ" },
+  { value: "active", label: "途中" },
+  { value: "wish", label: "見たい" },
+];
+
+function applyFilter(works: Work[], f: Filter): Work[] {
+  if (f === "all") return works;
+  if (f === "active") return works.filter((w) => w.status === "active" || w.status === "paused");
+  return works.filter((w) => w.status === f);
+}
+
+/** 状態で絞り込む帯（件数つき。0件の状態は出さない） */
+function FilterChips({ works, value, onChange }: { works: Work[]; value: Filter; onChange: (f: Filter) => void }) {
+  const shown = FILTERS.filter((f) => f.value === "all" || applyFilter(works, f.value).length > 0);
+  if (shown.length <= 2) return null;
+  return (
+    <div className="chips scroll-chips" role="radiogroup" aria-label="状態で絞り込む">
+      {shown.map((f) => (
+        <button key={f.value} type="button" role="radio" aria-checked={value === f.value} className={`chip${value === f.value ? " on" : ""}`} onClick={() => onChange(f.value)}>
+          {f.label} <span className="chip-count">{applyFilter(works, f.value).length}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -57,7 +93,7 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
     >
       <section className="card list-card">
         <div className="list-head">
-          <h2>この親作品の作品</h2>
+          <h2>このシリーズの作品</h2>
           <span className="muted small">{works.length}件</span>
         </div>
         {works.length === 0 ? <p className="muted pad">作品はありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} />}
@@ -69,8 +105,10 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
 /** 人物：登録した作品・公演を横断して見る */
 export function PersonView({ data, person, onBack, onOpen, onRename, onDelete }: { data: DataSet; person: Person; onBack: () => void; onOpen: (w: Work) => void; onRename: (name: string) => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const works = worksOfPerson(data, person.id);
-  const lives = works.filter((w) => w.medium === "live");
+  const shown = applyFilter(works, filter);
+  const byMedium = MEDIA.map((m) => ({ label: MEDIUM_LABEL[m], n: works.filter((w) => w.medium === m).length })).filter((x) => x.n > 0);
   return (
     <Screen
       title={person.name}
@@ -80,13 +118,29 @@ export function PersonView({ data, person, onBack, onOpen, onRename, onDelete }:
         { label: "人物を消す（作品は残る）", danger: true, onClick: onDelete },
       ]} />}
     >
-      {lives.length > 0 && <p className="muted small">LIVE・フェスに{lives.length}回行っています。</p>}
+      {works.length > 0 && (
+        <section className="card">
+          <dl className="summary-sub person-summary">
+            <div>
+              <dt>{works.some((w) => w.medium === "live") ? "見た・行った" : "見た・読んだ"}</dt>
+              <dd>{works.filter((w) => w.status === "done").length}</dd>
+            </div>
+            {byMedium.slice(0, 3).map((x) => (
+              <div key={x.label}>
+                <dt>{x.label}</dt>
+                <dd>{x.n}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+      <FilterChips works={works} value={filter} onChange={setFilter} />
       <section className="card list-card">
         <div className="list-head">
           <h2>作品・公演</h2>
-          <span className="muted small">{works.length}件</span>
+          <span className="muted small">{shown.length}件</span>
         </div>
-        {works.length === 0 ? <p className="muted pad">まだありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} />}
+        {shown.length === 0 ? <p className="muted pad">まだありません。</p> : <WorkRows data={data} works={shown} onOpen={onOpen} />}
       </section>
     </Screen>
   );

@@ -495,3 +495,51 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 .work-body .buy-btn { margin: 2px 0 var(--kb-space-1) var(--kb-space-4); min-height: 32px; }
 .work-card .card-cover + .work-body .work-main { padding-left: var(--kb-space-3); }
 .work-card .card-cover + .work-body .buy-btn { margin-left: var(--kb-space-3); }
+
+/* v0.7.0：入力画面（項目名を左に置くセグメント・3列の数字・＋で追加） */
+.seg-row { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); align-items: center; gap: var(--kb-space-2); }
+.seg-row .segmented { padding: 2px; }
+.seg-row .seg { min-height: 34px; padding: 0 2px; font-size: var(--kb-fs-s); white-space: nowrap; }
+.three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--kb-space-2); }
+.three-col .text-input, .two-col .text-input { min-width: 0; }
+.add-btn { flex: none; width: 40px; min-height: 40px !important; padding: 0 !important; }
+.form-stack { display: flex; flex-direction: column; gap: var(--kb-space-2); }
+.toggle-text { display: flex; flex-direction: column; gap: 2px; }
+.form.compact input[type="date"].text-input { padding: 0 var(--kb-space-2); }
+
+/* v0.7.0：作品の詳細（表紙＋題名＋状態、続きの進み具合） */
+.hero { display: flex; gap: var(--kb-space-3); align-items: flex-start; }
+.hero-cover { flex: none; width: 76px; height: 108px; border-radius: var(--kb-radius-s); object-fit: cover; background: var(--kb-surface-2); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15); }
+.hero-cover-empty { display: flex; align-items: center; justify-content: center; color: var(--kb-text-3); font-size: var(--kb-fs-xs); font-weight: 600; box-shadow: none; }
+.hero-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--kb-space-1); }
+.card .hero-title { margin: 0; font-size: var(--kb-fs-l); line-height: 1.4; overflow-wrap: anywhere; }
+.card .hero-sub { margin: 0; color: var(--kb-text-2); font-size: var(--kb-fs-s); line-height: 1.4; }
+.hero-tags { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kb-space-1); margin-top: 2px; }
+.status-pill { padding: 1px 8px; border-radius: var(--kb-radius-pill); font-size: var(--kb-fs-xs); font-weight: 700; background: var(--kb-accent-soft); color: var(--kb-accent-strong); }
+.status-pill.s-done { background: #e7f3ec; color: #2c6e49; }
+.status-pill.s-paused { background: var(--kb-surface-2); color: var(--kb-text-2); }
+.status-pill.s-wish { background: var(--kb-warning-soft); color: var(--kb-warning); }
+.hero-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--kb-accent-strong); font-size: var(--kb-fs-s); text-align: left; }
+.progress-box { margin-top: var(--kb-space-3); padding: var(--kb-space-3); border-radius: var(--kb-radius-m); background: var(--kb-surface-2); }
+.progress-line { display: flex; align-items: baseline; justify-content: space-between; gap: var(--kb-space-2); font-size: var(--kb-fs-m); }
+.progress-now strong { font-size: 1.5rem; margin-right: 2px; font-variant-numeric: tabular-nums; }
+.progress-left { flex: none; color: var(--kb-accent-strong); font-weight: 700; font-size: var(--kb-fs-s); }
+.progress-bar { height: 6px; margin-top: var(--kb-space-2); border-radius: 3px; background: var(--kb-line); overflow: hidden; }
+.progress-bar span { display: block; height: 100%; border-radius: 3px; background: var(--kb-accent); }
+.card .progress-note { margin: var(--kb-space-1) 0 0; color: var(--kb-text-2); font-size: var(--kb-fs-xs); }
+.row-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--kb-space-1); }
+.chip.mini { min-height: 32px; padding: 0 var(--kb-space-3); font-size: var(--kb-fs-s); }
+.detail-block { padding-top: var(--kb-space-3); display: flex; flex-direction: column; gap: var(--kb-space-1); }
+.rows:empty + .detail-block { padding-top: 0; }
+.card .detail-block .memo-text { margin: 0; }
+.card .empty-info { margin: 0; }
+.rows:not(:empty) ~ .empty-info { display: none; }
+.card .card-title { margin: 0 0 var(--kb-space-2); font-size: var(--kb-fs-m); }
+ol.setlist { margin: 0; padding-left: 1.6em; line-height: 1.8; font-size: var(--kb-fs-m); }
+
+/* v0.7.0：人物・親作品の一覧に小さな表紙 */
+.list-row .cover-thumb { width: 34px; height: 48px; border-radius: 4px; }
+.cover-empty { display: block; }
+.chip-count { color: var(--kb-text-3); font-weight: 400; font-size: var(--kb-fs-xs); }
+.chip.on .chip-count { color: inherit; }
+.person-summary { padding-top: 0; border-top: 0; text-align: center; }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MEDIUM_LABEL, STATUS_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, wishWord } from "./constants";
+import { MEDIUM_LABEL, WEEKDAY_LABEL, doneWord, peopleLabel, statusWord } from "./constants";
 import { formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { progressKindOf, withAutoStatus } from "./progressLogic";
@@ -8,7 +8,7 @@ import { airedFromAnilist, seasonLabelOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
-import type { DataSet, Franchise, Log, Medium, OwnedMedium, PaperPlace, Person, VolumeRange, Work, WorkStatus } from "./types";
+import type { DataSet, Franchise, Log, Medium, OwnedMedium, PaperPlace, Person, VideoOwned, VolumeRange, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 import { emptyWork, newLog } from "./workFactory";
 
@@ -45,11 +45,33 @@ const OWNED_MEDIA: { value: OwnedMedium; label: string }[] = [
   { value: "jump_plus", label: "ジャンプ＋" },
 ];
 const PLACES: { value: PaperPlace; label: string }[] = [
+  { value: null, label: "未設定" },
   { value: "home", label: "自宅" },
   { value: "parents_home", label: "実家" },
   { value: "both", label: "両方" },
-  { value: null, label: "未設定" },
 ];
+const VIDEO_CHOICES: { value: VideoOwned; label: string }[] = [
+  { value: null, label: "なし" },
+  { value: "dvd", label: "DVD" },
+  { value: "bluray", label: "Blu-ray" },
+  { value: "digital", label: "配信" },
+];
+
+/** 横並びの選択（セグメント）。項目名は左に置いて縦を短くする */
+function SegRow<T>({ label, value, choices, onChange }: { label: string; value: T; choices: readonly { value: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="seg-row">
+      <span className="field-label">{label}</span>
+      <div className="segmented" role="radiogroup" aria-label={label}>
+        {choices.map((c) => (
+          <button key={String(c.value)} type="button" role="radio" aria-checked={value === c.value} className={`seg${value === c.value ? " on" : ""}`} onClick={() => onChange(c.value)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   /** null＝新規 */
@@ -176,7 +198,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
   };
 
   const statusChoices: WorkStatus[] = kind === "none" ? ["done", "wish"] : ["active", "wish", "paused", "done"];
-  const statusLabel = (s: WorkStatus) => (kind === "none" ? (s === "done" ? doneWord(w.medium) : wishWord(w.medium)) : s === "done" ? "見終わった" : STATUS_LABEL[s]);
+  const removePerson = (n: string) => setPeople(people.filter((x) => x !== n));
 
   return (
     <Screen
@@ -188,6 +210,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </button>
       }
     >
+      {/* 作品：種類・タイトル・状態 */}
       <div className="form card compact">
         <div className="inline-row">
           <span className="field-label">種類</span>
@@ -205,85 +228,73 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         )}
         <div className="title-row">
           {w.coverUrl && <img className="cover-thumb" src={w.coverUrl} alt="" />}
-          <label className="field grow">
-            <span className="field-label">タイトル</span>
-            <input className="text-input" value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={w.medium === "magazine" ? "例：週刊少年ジャンプ" : "作品名"} />
-          </label>
+          <div className="grow form-stack">
+            <label className="field">
+              <span className="field-label">タイトル</span>
+              <input className="text-input" value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={w.medium === "magazine" ? "例：週刊少年ジャンプ" : "作品名"} />
+            </label>
+            {kind === "episode" && (
+              <input className="text-input" value={w.seasonLabel} onChange={(e) => set({ seasonLabel: e.target.value })} placeholder="シーズン・編（例：第2期）" aria-label="シーズン・編" />
+            )}
+          </div>
         </div>
         {(w.medium === "anime" || w.medium === "manga") && (
           <div className="field">
             {w.externalIds.anilist ? (
               <div className="picked">
-                <span className="muted small">AniListとつながっています（表紙・話数・完結は自動で確かめます）</span>
+                <span className="muted small">AniListとつながっています（表紙・話数・完結を自動で確かめます）</span>
                 <button type="button" className="text-btn" onClick={() => setW({ ...w, externalIds: { ...w.externalIds, anilist: undefined }, coverUrl: null, infoCheckedAt: null })}>外す</button>
               </div>
             ) : (
               <button type="button" className="secondary-btn" disabled={!w.title.trim()} onClick={() => setSearching(!searching)}>
-                {searching ? "探すのをやめる" : "AniListで探して表紙・話数を入れる"}
+                <Icon name="search" size={18} /> {searching ? "探すのをやめる" : "AniListで表紙・話数を探す"}
               </button>
             )}
             {searching && <AnilistResults term={w.title} type={w.medium === "anime" ? "ANIME" : "MANGA"} onPick={applyPick} />}
           </div>
         )}
-        {kind === "episode" && (
-          <label className="field">
-            <span className="field-label">シーズン・編（任意）</span>
-            <input className="text-input" value={w.seasonLabel} onChange={(e) => set({ seasonLabel: e.target.value })} placeholder="例：第2期" />
-          </label>
-        )}
-        <div className="field">
-          <span className="field-label">状態</span>
-          <div className="segmented">
-            {statusChoices.map((s) => (
-              <button key={s} type="button" className={`seg${w.status === s ? " on" : ""}`} onClick={() => set({ status: s })}>
-                {statusLabel(s)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SegRow label="状態" value={w.status} choices={statusChoices.map((s) => ({ value: s, label: statusWord(w.medium, s) }))} onChange={(s) => set({ status: s })} />
       </div>
 
+      {/* 続き：数字は横に並べる */}
       {(kind === "episode" || kind === "volume") && (
         <div className="form card compact">
-          <div className="two-col">
+          <div className={kind === "episode" && scheduleOn ? "two-col" : "three-col"}>
             <label className="field">
-              <span className="field-label">{kind === "episode" ? "何話まで見た" : "何巻まで読んだ"}</span>
+              <span className="field-label">{kind === "episode" ? "見た話" : "読んだ巻"}</span>
               <input className="text-input" inputMode="numeric" value={progressText} onChange={(e) => setProgressText(e.target.value)} placeholder="0" />
             </label>
+            {(kind === "volume" || !scheduleOn) && (
+              <label className="field">
+                <span className="field-label">{kind === "episode" ? "放送済み" : "既刊"}</span>
+                <input className="text-input" inputMode="numeric" value={latestText} onChange={(e) => setLatestText(e.target.value)} placeholder="−" />
+              </label>
+            )}
             <label className="field">
-              <span className="field-label">{kind === "episode" ? "全何話（任意）" : "全何巻（任意）"}</span>
-              <input className="text-input" inputMode="numeric" value={totalText} onChange={(e) => setTotalText(e.target.value)} />
+              <span className="field-label">{kind === "episode" ? "全話数" : "全巻数"}</span>
+              <input className="text-input" inputMode="numeric" value={totalText} onChange={(e) => setTotalText(e.target.value)} placeholder="−" />
             </label>
           </div>
-          <div className="field">
-            <span className="field-label">{kind === "episode" ? "放送" : "連載"}</span>
-            <div className="segmented">
-              {[
-                { v: false, l: kind === "episode" ? "放送中" : "連載中" },
-                { v: true, l: "完結" },
-                { v: null, l: "分からない" },
-              ].map((o) => (
-                <button key={String(o.v)} type="button" className={`seg${w.finished === o.v ? " on" : ""}`} onClick={() => set({ finished: o.v })}>
-                  {o.l}
-                </button>
-              ))}
-            </div>
-          </div>
+          <SegRow
+            label={kind === "episode" ? "放送" : "連載"}
+            value={w.finished}
+            choices={[
+              { value: false, label: kind === "episode" ? "放送中" : "連載中" },
+              { value: true, label: "完結" },
+              { value: null, label: "不明" },
+            ]}
+            onChange={(v) => set({ finished: v })}
+          />
           {kind === "episode" && (
             <label className="toggle-row">
-              <span>放送日で未消化を数える</span>
+              <span>放送日から未消化を数える</span>
               <input type="checkbox" checked={scheduleOn} onChange={(e) => toggleSchedule(e.target.checked)} />
-            </label>
-          )}
-          {(kind === "volume" || (kind === "episode" && !scheduleOn)) && (
-            <label className="field">
-              <span className="field-label">{kind === "episode" ? "放送・公開済みの話数（任意）" : "既刊（任意。完結なら全巻数でよい）"}</span>
-              <input className="text-input" inputMode="numeric" value={latestText} onChange={(e) => setLatestText(e.target.value)} />
             </label>
           )}
         </div>
       )}
 
+      {/* 毎週の放送・発売 */}
       {(kind === "issue" || (kind === "episode" && scheduleOn)) && w.schedule && (
         <div className="form card compact">
           <div className="two-col">
@@ -291,20 +302,19 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
               <span className="field-label">{kind === "issue" ? "数え始める号の発売日" : "数え始める回の放送日"}</span>
               <input className="text-input" type="date" value={w.schedule.firstDate} onChange={(e) => set({ schedule: { ...w.schedule!, firstDate: e.target.value } })} />
             </label>
-            {kind === "episode" && (
+            {kind === "episode" ? (
               <label className="field">
                 <span className="field-label">その回は第何話</span>
                 <input className="text-input" inputMode="numeric" value={firstNumberText} onChange={(e) => setFirstNumberText(e.target.value)} />
               </label>
+            ) : (
+              <label className="field">
+                <span className="field-label">最後に読んだ号の発売日</span>
+                <input className="text-input" type="date" value={w.readThrough ?? ""} onChange={(e) => set({ readThrough: e.target.value || null })} />
+              </label>
             )}
           </div>
           {isDateKey(w.schedule.firstDate) && <p className="field-hint">毎週{WEEKDAY_LABEL[weekdayOf(w.schedule.firstDate)]}曜日に1{kind === "issue" ? "冊" : "話"}ずつ増えます。</p>}
-          {kind === "issue" && (
-            <label className="field">
-              <span className="field-label">最後に読んだ号の発売日（任意）</span>
-              <input className="text-input" type="date" value={w.readThrough ?? ""} onChange={(e) => set({ readThrough: e.target.value || null })} />
-            </label>
-          )}
           <div className="field">
             <span className="field-label">{kind === "issue" ? "休みの週（合併号の翌週など）" : "休止した週"}</span>
             {w.schedule.skipDates.length > 0 && (
@@ -320,14 +330,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
               <input className="text-input" type="date" value={skipDraft} onChange={(e) => setSkipDraft(e.target.value)} aria-label="休みの日" />
               <button
                 type="button"
-                className="secondary-btn"
+                className="secondary-btn add-btn"
+                aria-label="休みの週を追加"
                 disabled={!isDateKey(skipDraft)}
                 onClick={() => {
                   if (!w.schedule!.skipDates.includes(skipDraft)) set({ schedule: { ...w.schedule!, skipDates: [...w.schedule!.skipDates, skipDraft] } });
                   setSkipDraft("");
                 }}
               >
-                追加
+                <Icon name="plus" size={18} />
               </button>
             </div>
           </div>
@@ -341,45 +352,32 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </div>
       )}
 
+      {/* マンガの所持 */}
       {w.owned && (
         <div className="form card compact">
           <label className="toggle-row">
-            <span>新刊を買う（新刊と未購入を知らせる）</span>
+            <span className="toggle-text">
+              新刊を買う
+              <span className="field-hint">新刊と、まだ買っていない巻を知らせます</span>
+            </span>
             <input type="checkbox" checked={w.buying} onChange={(e) => set({ buying: e.target.checked })} />
           </label>
-          <label className="field">
-            <span className="field-label">持っている巻（任意）</span>
-            <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 7" />
-          </label>
-          <div className="field">
-            <span className="field-label">形</span>
-            <div className="chips">
-              {OWNED_MEDIA.map((o) => (
-                <button key={String(o.value)} type="button" className={`chip${w.owned!.medium === o.value ? " on" : ""}`} onClick={() => set({ owned: { ...w.owned!, medium: o.value } })}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
+          <div className="two-col">
+            <label className="field">
+              <span className="field-label">持っている巻</span>
+              <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 7" />
+            </label>
+            <label className="field">
+              <span className="field-label">版</span>
+              <input className="text-input" value={w.edition} onChange={(e) => set({ edition: e.target.value })} placeholder="例：新装版" />
+            </label>
           </div>
-          {w.owned.medium === "paper" && (
-            <div className="field">
-              <span className="field-label">置き場所</span>
-              <div className="chips">
-                {PLACES.map((o) => (
-                  <button key={String(o.value)} type="button" className={`chip${w.owned!.place === o.value ? " on" : ""}`} onClick={() => set({ owned: { ...w.owned!, place: o.value } })}>
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <label className="field">
-            <span className="field-label">版（任意）</span>
-            <input className="text-input" value={w.edition} onChange={(e) => set({ edition: e.target.value })} placeholder="例：新装版" />
-          </label>
+          <SegRow label="形" value={w.owned.medium} choices={OWNED_MEDIA} onChange={(v) => set({ owned: { ...w.owned!, medium: v } })} />
+          {w.owned.medium === "paper" && <SegRow label="置き場所" value={w.owned.place} choices={PLACES} onChange={(v) => set({ owned: { ...w.owned!, place: v } })} />}
         </div>
       )}
 
+      {/* 新規の単発もの：その場で見た記録 */}
       {isNew && kind === "none" && w.status !== "wish" && (
         <div className="form card compact">
           <div className="two-col">
@@ -389,90 +387,79 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             </label>
             <label className="field">
               <span className="field-label">{w.medium === "live" ? "会場" : "どこで"}</span>
-              <input className="text-input" value={viewPlace} onChange={(e) => setViewPlace(e.target.value)} placeholder={w.medium === "live" ? "例：日本武道館" : "映画館・配信・家"} />
+              <input className="text-input" value={viewPlace} onChange={(e) => setViewPlace(e.target.value)} placeholder={w.medium === "live" ? "例：日本武道館" : "映画館・配信など"} />
             </label>
           </div>
           <div className="inline-row">
             <span className="field-label">星</span>
             <Stars value={viewRating} onChange={setViewRating} />
           </div>
-          <label className="field">
-            <span className="field-label">感想（任意）</span>
-            <textarea className="text-input note-input" rows={3} value={viewNote} onChange={(e) => setViewNote(e.target.value)} />
-          </label>
+          <textarea className="text-input note-input" rows={3} value={viewNote} onChange={(e) => setViewNote(e.target.value)} placeholder="感想（任意）" aria-label="感想" />
         </div>
       )}
 
+      {/* つながり：親作品・人物（LIVEは映像・セットリストも） */}
       <div className="form card compact">
-        <label className="field">
-          <span className="field-label">親作品・シリーズ（任意）</span>
-          <input className="text-input" list="franchise-list" value={franchiseText} onChange={(e) => setFranchiseText(e.target.value)} placeholder="同じ原作のアニメ・マンガ・映画をまとめる名前" />
-          <datalist id="franchise-list">
-            {data.franchises.filter((f) => f.deletedAt === null).map((f) => <option key={f.id} value={f.title} />)}
-          </datalist>
-        </label>
-        <div className="field">
-          <span className="field-label">{w.medium === "live" ? "出演者・アーティスト（任意）" : "人物（任意。俳優・声優・作者など）"}</span>
-          {people.length > 0 && (
-            <div className="chips">
-              {people.map((n) => (
-                <button key={n} type="button" className="chip on" aria-label={`${n}を外す`} onClick={() => setPeople(people.filter((x) => x !== n))}>
-                  {n} <Icon name="close" size={14} />
-                </button>
-              ))}
+        <div className="two-col">
+          <label className="field">
+            <span className="field-label">親作品・シリーズ</span>
+            <input className="text-input" list="franchise-list" value={franchiseText} onChange={(e) => setFranchiseText(e.target.value)} placeholder="シリーズ名" />
+            <datalist id="franchise-list">
+              {data.franchises.filter((f) => f.deletedAt === null).map((f) => <option key={f.id} value={f.title} />)}
+            </datalist>
+          </label>
+          <div className="field">
+            <span className="field-label">{peopleLabel(w.medium)}</span>
+            <div className="inline-add">
+              <input
+                className="text-input"
+                list="person-list"
+                value={personDraft}
+                onChange={(e) => setPersonDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
+                placeholder="名前"
+                aria-label={`${peopleLabel(w.medium)}の名前`}
+              />
+              <button type="button" className="secondary-btn add-btn" aria-label="追加" disabled={!personDraft.trim()} onClick={addPerson}>
+                <Icon name="plus" size={18} />
+              </button>
             </div>
-          )}
-          <div className="inline-add">
-            <input
-              className="text-input"
-              list="person-list"
-              value={personDraft}
-              onChange={(e) => setPersonDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
-              placeholder="名前"
-              aria-label="人物の名前"
-            />
-            <button type="button" className="secondary-btn" disabled={!personDraft.trim()} onClick={addPerson}>追加</button>
+            <datalist id="person-list">
+              {data.people.filter((p) => p.deletedAt === null).map((p) => <option key={p.id} value={p.name} />)}
+            </datalist>
           </div>
-          <datalist id="person-list">
-            {data.people.filter((p) => p.deletedAt === null).map((p) => <option key={p.id} value={p.name} />)}
-          </datalist>
         </div>
-        {(w.medium === "live" || w.medium === "video") && (
-          <div className="inline-row">
-            <span className="field-label">映像</span>
-            <div className="chips">
-              {([null, "dvd", "bluray", "digital"] as const).map((v) => (
-                <button key={String(v)} type="button" className={`chip${w.videoOwned === v ? " on" : ""}`} onClick={() => set({ videoOwned: v })}>
-                  {v ? VIDEO_OWNED_LABEL[v] : "なし"}
-                </button>
-              ))}
-            </div>
+        {people.length > 0 && (
+          <div className="chips">
+            {people.map((n) => (
+              <button key={n} type="button" className="chip on" aria-label={`${n}を外す`} onClick={() => removePerson(n)}>
+                {n} <Icon name="close" size={14} />
+              </button>
+            ))}
           </div>
         )}
         {(w.medium === "live" || w.medium === "video") && (
-          <label className="field">
-            <span className="field-label">セットリスト（任意）</span>
-            <textarea className="text-input note-input" rows={4} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="1曲ずつ改行" />
-          </label>
+          <>
+            <SegRow label="映像" value={w.videoOwned} choices={VIDEO_CHOICES} onChange={(v) => set({ videoOwned: v })} />
+            <textarea className="text-input note-input" rows={3} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="セットリスト（1曲ずつ改行）" aria-label="セットリスト" />
+          </>
         )}
       </div>
 
+      {/* そのほか */}
       <div className="form card compact">
         <div className="two-col">
           <label className="field">
             <span className="field-label">読み仮名</span>
-            <input className="text-input" value={w.kana} onChange={(e) => set({ kana: e.target.value })} />
+            <input className="text-input" value={w.kana} onChange={(e) => set({ kana: e.target.value })} placeholder="並べ替えに使う" />
           </label>
           <label className="field">
             <span className="field-label">画像のURL</span>
             <input className="text-input" inputMode="url" value={w.coverUrl ?? ""} onChange={(e) => set({ coverUrl: e.target.value.trim() || null })} placeholder="https://…" />
           </label>
         </div>
-        <label className="field">
-          <span className="field-label">メモ（任意）</span>
-          <textarea className="text-input note-input" rows={2} value={w.memo} onChange={(e) => set({ memo: e.target.value })} />
-        </label>
+        <textarea className="text-input note-input" rows={2} value={w.memo} onChange={(e) => set({ memo: e.target.value })} placeholder="メモ（任意）" aria-label="メモ" />
+        {w.legacyNote && <p className="field-hint">移行したときのメモ：{w.legacyNote}</p>}
       </div>
       {error && <p className="field-error center">{error}</p>}
       <button type="button" className="primary-btn wide" onClick={save}>

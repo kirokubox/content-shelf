@@ -551,3 +551,10 @@ ol.setlist { margin: 0; padding-left: 1.6em; line-height: 1.8; font-size: var(--
 .precision-select { border: 0; background: transparent; color: var(--kb-accent-strong); font: inherit; font-weight: 700; padding: 0; }
 .placeholder-box { display: flex; align-items: center; color: var(--kb-text-3); background: var(--kb-surface-2); border-color: transparent; }
 select.text-input { padding: 0 var(--kb-space-2); }
+
+/* テキスト書き出しの期間（v0.8.2） */
+.export-unit { margin-top: var(--kb-space-3); }
+.export-period { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-2); margin: var(--kb-space-3) 0; }
+.export-period-label { display: flex; flex-direction: column; align-items: center; text-align: center; font-weight: 700; }
+.export-period-label .muted { font-weight: 400; }
+.export-period .icon-btn:disabled { opacity: 0.3; }

@@ -1,6 +1,7 @@
 // 全記録をテキスト（Markdown）で書き出す。好きなもの台帳やAIの振り返りの材料（仕様181 §6.1）
 import { CLEAR_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, statusWord } from "./constants.js";
 import { isoToDateKey } from "./dateUtils.js";
+import { logInRange } from "./exportRange.js";
 import { personNames } from "./linkLogic.js";
 import { progressKindOf } from "./progressLogic.js";
 import type { DataSet, Log, Work } from "./types.js";
@@ -19,16 +20,16 @@ function logLine(work: Work, l: Log): string {
   return `  - ${parts}${note}`;
 }
 
-/** from〜to（YYYY-MM-DD、どちらも含む）の記録だけにするときは range を渡す */
-export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from: string; to: string }): string {
+/** from〜to（YYYY-MM-DD、どちらも含む）の記録だけにするときは range を渡す。label は見出しに出す期間の名前 */
+export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from: string; to: string; label?: string }): string {
   const logsByWork = new Map<string, Log[]>();
   for (const l of data.logs) {
     if (l.deletedAt !== null) continue;
-    if (range && (l.date < range.from || l.date > range.to)) continue;
+    if (range && !logInRange(l.date, l.datePrecision, range)) continue;
     logsByWork.set(l.workId, [...(logsByWork.get(l.workId) ?? []), l]);
   }
   const lines: string[] = ["# コンテンツ棚の記録", "", `- 書き出し：${exportedAt}`];
-  if (range) lines.push(`- 期間：${range.from}〜${range.to}（期間内に記録がある作品だけ）`);
+  if (range) lines.push(`- 期間：${range.label ? `${range.label}　` : ""}${range.from}〜${range.to}（期間内に記録がある作品だけ。年だけ・年月だけの記録は、その年・月がまるごと期間に入るときだけ）`);
   lines.push("- 「状態」は書き出した時点のもの。話数・巻は記録したものだけで、空欄は分からないことを表す", "");
   for (const m of MEDIA) {
     const works = data.works

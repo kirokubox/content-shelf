@@ -4,6 +4,8 @@ import type { MergePlan, UpdatePlan } from "./backup";
 import { ConfirmSheet } from "./BottomSheet";
 import { APP_VERSION } from "./constants";
 import { nowIso } from "./dateUtils";
+import { exportRange, logInRange } from "./exportRange";
+import type { ExportUnit } from "./exportRange";
 import { downloadTextFile } from "./fileUtils";
 import { Icon } from "./Icon";
 import { parseMangaShelfBackup } from "./mangaShelfImport";
@@ -15,6 +17,12 @@ type Pending =
   | { kind: "restore"; data: DataSet; works: number; logs: number }
   | { kind: "merge"; plan: MergePlan; label: string }
   | { kind: "update"; plan: UpdatePlan };
+
+const EXPORT_UNITS: { id: ExportUnit; label: string }[] = [
+  { id: "week", label: "週" },
+  { id: "month", label: "月" },
+  { id: "all", label: "全部" },
+];
 
 interface Props {
   data: DataSet;
@@ -33,6 +41,23 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exportUnit, setExportUnit] = useState<ExportUnit>("week");
+  const [exportOffset, setExportOffset] = useState(0);
+
+  const range = exportUnit === "all" ? null : exportRange(exportUnit, today, exportOffset);
+  const rangeLogCount = range ? data.logs.filter((l) => l.deletedAt === null && logInRange(l.date, l.datePrecision, range)).length : 0;
+  const unitWord = exportUnit === "week" ? "週" : "月";
+  const offsetWord = exportOffset === 0 ? `今${unitWord}` : exportOffset === -1 ? `先${unitWord}` : `${-exportOffset}${exportUnit === "week" ? "週" : "か月"}前`;
+
+  const exportText = () => {
+    if (!range) {
+      downloadTextFile(`content-shelf-all-${today}.md`, buildMarkdown(data, nowIso()), "text/markdown");
+      showToast("全記録を書き出しました");
+      return;
+    }
+    downloadTextFile(`content-shelf-${exportUnit}-${range.key}.md`, buildMarkdown(data, nowIso(), range), "text/markdown");
+    showToast(`${range.label}の記録を書き出しました`);
+  };
 
   const pick = (m: typeof mode) => {
     setMode(m);
@@ -111,14 +136,31 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
       </section>
       <section className="card">
         <h2>テキストで書き出す</h2>
-        <p className="muted small">好きなもの台帳やAIとの振り返りに渡すためのテキストです。</p>
+        <p className="muted small">好きなもの台帳やAIとの振り返りに渡すためのテキストです。週は月曜〜日曜です。</p>
+        <div className="segmented export-unit" role="tablist" aria-label="書き出す範囲">
+          {EXPORT_UNITS.map((u) => (
+            <button key={u.id} type="button" role="tab" aria-selected={u.id === exportUnit} className={`seg${u.id === exportUnit ? " on" : ""}`} onClick={() => { setExportUnit(u.id); setExportOffset(0); }}>
+              {u.label}
+            </button>
+          ))}
+        </div>
+        {range && (
+          <div className="export-period">
+            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "前の週" : "前の月"} onClick={() => setExportOffset(exportOffset - 1)}>
+              <Icon name="chevron-left" size={20} />
+            </button>
+            <span className="export-period-label">
+              <span>{range.title}</span>
+              <span className="muted small">{[range.dates, offsetWord, `記録 ${rangeLogCount}件`].filter(Boolean).join("・")}</span>
+            </span>
+            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "次の週" : "次の月"} disabled={exportOffset >= 0} onClick={() => setExportOffset(exportOffset + 1)}>
+              <Icon name="chevron-right" size={20} />
+            </button>
+          </div>
+        )}
         <div className="setting-list">
-          <button type="button" className="setting-row" onClick={() => { downloadTextFile(`content-shelf-all-${today}.md`, buildMarkdown(data, nowIso()), "text/markdown"); showToast("全記録を書き出しました"); }}>
-            <span className="setting-label">全記録をテキストで書き出す</span>
-            <Icon name="download" size={20} />
-          </button>
-          <button type="button" className="setting-row" onClick={() => { const from = `${today.slice(0, 7)}-01`; downloadTextFile(`content-shelf-month-${today.slice(0, 7)}.md`, buildMarkdown(data, nowIso(), { from, to: `${today.slice(0, 7)}-31` }), "text/markdown"); showToast("今月の記録を書き出しました"); }}>
-            <span className="setting-label">今月の記録をテキストで書き出す</span>
+          <button type="button" className="setting-row" onClick={exportText}>
+            <span className="setting-label">{range ? "この期間をテキストで書き出す" : "全記録をテキストで書き出す"}</span>
             <Icon name="download" size={20} />
           </button>
         </div>

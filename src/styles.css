@@ -482,6 +482,8 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 .inline-value { flex: 1; font-size: var(--kb-fs-m); font-weight: 600; }
 .title-row { display: flex; align-items: flex-end; gap: var(--kb-space-3); }
 .title-row .cover-thumb { width: 44px; height: 62px; }
+.photo-row { display: flex; align-items: center; gap: var(--kb-space-3); flex-wrap: wrap; }
+.photo-row .secondary-btn { display: inline-flex; align-items: center; gap: 6px; }
 .grow { flex: 1; min-width: 0; }
 .note-input { min-height: 0; }
 

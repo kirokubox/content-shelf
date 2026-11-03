@@ -5,7 +5,9 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "rootDir": ".",
     "outDir": ".test-build"
   },
@@ -24,6 +26,8 @@
     "src/markdownExport.ts",
     "src/exportRange.ts",
     "src/anilist.ts",
+    "src/photoBackup.ts",
+    "src/zip.ts",
     "tests/*.ts"
   ]
 }

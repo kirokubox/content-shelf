@@ -82,7 +82,7 @@ export function PlaceField({ medium, value, onChange }: { medium: Medium; value:
   return (
     <label className="field">
       <span className="field-label">{medium === "live" ? "会場" : "どこで"}</span>
-      <input className="text-input" value={value} onChange={(e) => onChange(e.target.value)} placeholder={medium === "live" ? "例：日本武道館" : "配信・家など"} />
+      <input className="text-input" value={value} onChange={(e) => onChange(e.target.value)} placeholder={medium === "live" ? "例：日本武道館・代々木公園" : "配信・家など"} />
     </label>
   );
 }

@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
-import { MEDIUM_LABEL, PLATFORMS, WEEKDAY_LABEL, doneWord, hasOngoingStatus, peopleLabel, statusWord } from "./constants";
+import { useEffect, useRef, useState } from "react";
+import { preparePhoto } from "./photos";
+import { deletePhoto, putPhotos } from "./storage";
+import { rememberPhoto, useCoverSrc } from "./useCover";
+import { EVENT_KIND_LABEL, MEDIUM_LABEL, PLATFORMS, isStageEvent, WEEKDAY_LABEL, doneWord, hasOngoingStatus, workPeopleLabel, workStatusWord } from "./constants";
 import { dateKeyFromInput, formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { DateField, PlaceField, SegRow } from "./formParts";
 import type { PrecisionChoice } from "./formParts";
@@ -10,7 +13,7 @@ import { airedFromAnilist, seasonLabelOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
-import type { ClearLevel, DataSet, Franchise, Log, Medium, OwnFormat, OwnedMedium, PaperPlace, Person, VideoOwned, VolumeRange, Work, WorkStatus } from "./types";
+import type { ClearLevel, DataSet, EventKind, StoredPhoto, Franchise, Log, Medium, OwnFormat, OwnedMedium, PaperPlace, Person, VideoOwned, VolumeRange, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 import { emptyWork, newLog } from "./workFactory";
 
@@ -52,6 +55,7 @@ const PLACES: { value: PaperPlace; label: string }[] = [
   { value: "parents_home", label: "実家" },
   { value: "both", label: "両方" },
 ];
+const EVENT_CHOICES: { value: EventKind; label: string }[] = (Object.keys(EVENT_KIND_LABEL) as Exclude<EventKind, null>[]).map((k) => ({ value: k, label: EVENT_KIND_LABEL[k] }));
 const VIDEO_CHOICES: { value: VideoOwned; label: string }[] = [
   { value: null, label: "なし" },
   { value: "dvd", label: "DVD" },
@@ -109,6 +113,32 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
   const [personDraft, setPersonDraft] = useState("");
   const [searching, setSearching] = useState(false);
   const [mediumOpen, setMediumOpen] = useState(false);
+  // 表紙の写真：選んだ写真は保存を押すまで端末に書かない（やめたら捨てる）
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [newPhoto, setNewPhoto] = useState<{ photo: StoredPhoto; url: string } | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => () => { if (newPhoto) URL.revokeObjectURL(newPhoto.url); }, [newPhoto]);
+  const savedCover = useCoverSrc(w);
+  const coverSrc = newPhoto?.url ?? savedCover;
+  const onPhotoFile = async (file: File | undefined) => {
+    if (photoInput.current) photoInput.current.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    setError("");
+    try {
+      const photo = await preparePhoto(file, w.id, nowIso());
+      setNewPhoto({ photo, url: URL.createObjectURL(photo.thumb ?? photo.blob) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "写真を読み込めませんでした");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const removePhoto = () => {
+    setNewPhoto(null);
+    set({ coverPhotoId: null });
+  };
   const applyPick = (m: AnilistMedia) => {
     setW((cur) => ({
       ...cur,
@@ -143,6 +173,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       withMagazineSchedule({
         ...cur,
         medium: m,
+        eventKind: m === "live" ? cur.eventKind ?? "live" : null,
         owned: m === "manga" ? cur.owned ?? { known: false, ranges: [], medium: null, place: null } : null,
         schedule: m === "anime" || m === "drama" || m === "magazine" ? cur.schedule : null,
         status: progressKindOf({ medium: m }) === "none" && !hasOngoingStatus(m) && (cur.status === "active" || cur.status === "paused") ? "done" : cur.status,
@@ -152,7 +183,8 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
   const scheduleOn = w.schedule !== null;
   const toggleSchedule = (on: boolean) => set({ schedule: on ? { firstDate: today, firstNumber: 1, skipDates: [] } : null });
 
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
     if (!w.title.trim()) return setError("タイトルを入れてください");
     const progress = numOrNull(progressText);
     const total = numOrNull(totalText);
@@ -173,7 +205,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       ...w,
       franchiseId: fr.id,
       personIds: pp.ids,
-      setlist: w.medium === "live" || w.medium === "video" ? w.setlist.trim() : w.setlist,
+      setlist: isStageEvent(w) || w.medium === "video" ? w.setlist.trim() : w.setlist,
       title: w.title.trim(),
       kana: w.kana.trim(),
       seasonLabel: w.seasonLabel.trim(),
@@ -203,6 +235,20 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         firstLog = newLog({ workId: next.id, kind: "view", date, datePrecision: p, note: viewNote.trim(), rating: viewRating, place: viewPlace.trim() }, now);
       }
     }
+    const oldPhotoId = work?.coverPhotoId ?? null;
+    if (newPhoto) next = { ...next, coverPhotoId: newPhoto.photo.id };
+    setSaving(true);
+    try {
+      if (newPhoto) {
+        await putPhotos([newPhoto.photo]);
+        rememberPhoto(newPhoto.photo);
+      }
+      if (oldPhotoId && oldPhotoId !== next.coverPhotoId) await deletePhoto(oldPhotoId).catch(() => undefined);
+    } catch {
+      setSaving(false);
+      return setError("写真を保存できませんでした（端末の空きが足りないかもしれません）");
+    }
+    setSaving(false);
     onSave(next, firstLog, { franchises: fr.created, people: pp.created });
   };
 
@@ -215,7 +261,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
       title={isNew ? "作品を登録" : "作品を編集"}
       onBack={onCancel}
       actions={
-        <button type="button" className="primary-btn small-btn" onClick={save}>
+        <button type="button" className="primary-btn small-btn" disabled={saving} onClick={() => void save()}>
           保存
         </button>
       }
@@ -237,7 +283,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
           </div>
         )}
         <div className="title-row">
-          {w.coverUrl && <img className="cover-thumb" src={w.coverUrl} alt="" />}
+          {coverSrc && <img className="cover-thumb" src={coverSrc} alt="" />}
           <div className="grow form-stack">
             <label className="field">
               <span className="field-label">タイトル</span>
@@ -247,6 +293,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
               <input className="text-input" value={w.seasonLabel} onChange={(e) => set({ seasonLabel: e.target.value })} placeholder="シーズン・編（例：第2期）" aria-label="シーズン・編" />
             )}
           </div>
+        </div>
+        <div className="photo-row">
+          <button type="button" className="secondary-btn small-btn" disabled={photoBusy} onClick={() => photoInput.current?.click()}>
+            <Icon name="camera" size={16} /> {photoBusy ? "読み込み中…" : newPhoto || w.coverPhotoId ? "表紙の写真を変える" : "表紙の写真を撮る・選ぶ"}
+          </button>
+          {(newPhoto || w.coverPhotoId) && (
+            <button type="button" className="text-btn" onClick={removePhoto}>写真を外す</button>
+          )}
+          <input ref={photoInput} type="file" accept="image/*" hidden onChange={(e) => void onPhotoFile(e.target.files?.[0])} />
         </div>
         {(w.medium === "anime" || w.medium === "manga") && (
           <div className="field">
@@ -263,7 +318,8 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             {searching && <AnilistResults term={w.title} type={w.medium === "anime" ? "ANIME" : "MANGA"} onPick={applyPick} />}
           </div>
         )}
-        <SegRow label="状態" value={w.status} choices={statusChoices.map((s) => ({ value: s, label: statusWord(w.medium, s) }))} onChange={(s) => set({ status: s })} />
+        {w.medium === "live" && <SegRow label="区分" value={w.eventKind} choices={EVENT_CHOICES} onChange={(v) => set({ eventKind: v })} />}
+        <SegRow label="状態" value={w.status} choices={statusChoices.map((s) => ({ value: s, label: workStatusWord(w, s) }))} onChange={(s) => set({ status: s })} />
       </div>
 
       {/* 続き：数字は横に並べる */}
@@ -461,7 +517,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             </datalist>
           </label>
           <div className="field">
-            <span className="field-label">{peopleLabel(w.medium)}</span>
+            <span className="field-label">{workPeopleLabel(w)}</span>
             <div className="inline-add">
               <input
                 className="text-input"
@@ -470,7 +526,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
                 onChange={(e) => setPersonDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
                 placeholder="名前"
-                aria-label={`${peopleLabel(w.medium)}の名前`}
+                aria-label={`${workPeopleLabel(w)}の名前`}
               />
               <button type="button" className="secondary-btn add-btn" aria-label="追加" disabled={!personDraft.trim()} onClick={addPerson}>
                 <Icon name="plus" size={18} />
@@ -499,7 +555,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
             ))}
           </div>
         )}
-        {(w.medium === "live" || w.medium === "video") && (
+        {(isStageEvent(w) || w.medium === "video") && (
           <>
             <SegRow label="映像" value={w.videoOwned} choices={VIDEO_CHOICES} onChange={(v) => set({ videoOwned: v })} />
             <textarea className="text-input note-input" rows={3} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="セットリスト（1曲ずつ改行）" aria-label="セットリスト" />
@@ -523,7 +579,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         {w.legacyNote && <p className="field-hint">移行したときのメモ：{w.legacyNote}</p>}
       </div>
       {error && <p className="field-error center">{error}</p>}
-      <button type="button" className="primary-btn wide" onClick={save}>
+      <button type="button" className="primary-btn wide" disabled={saving} onClick={() => void save()}>
         保存
       </button>
     </Screen>

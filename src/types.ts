@@ -11,6 +11,9 @@ export const WORK_STATUSES = ["active", "paused", "wish", "done"] as const;
 export type WorkStatus = (typeof WORK_STATUSES)[number];
 
 export type OwnedMedium = "paper" | "kindle" | "jump_plus" | null;
+/** イベントの区分（v0.9.0）。null＝未設定（LIVEと同じに扱う） */
+export type EventKind = "live" | "fes" | "food" | "exhibit" | "other" | null;
+
 export type PaperPlace = "home" | "parents_home" | "both" | "unknown" | null;
 
 export interface VolumeRange {
@@ -79,6 +82,8 @@ export interface Work extends Base {
   edition: string;
   externalIds: { anilist?: number; mangaShelf?: string };
   coverUrl: string | null;
+  /** 自分で撮った表紙の写真（photos ストアの id）。coverUrl より優先して出す（v0.9.0） */
+  coverPhotoId: string | null;
   memo: string;
   /** 旧アプリから引き継いだメモ */
   legacyNote: string;
@@ -88,13 +93,13 @@ export interface Work extends Base {
   touchedAt: string;
   /** 出演・アーティストなど、この作品・公演に関わる人物（段階3） */
   personIds: string[];
-  /** LIVE・フェスのセットリスト（任意） */
+  /** イベント（LIVE・フェス）と映像作品のセットリスト（任意） */
   setlist: string;
   /** 外部（AniList）の情報を最後に確かめた日時（段階4） */
   infoCheckedAt: string | null;
   /** マンガ：新刊を買うシリーズ（新刊と未購入を知らせる。v0.5.0） */
   buying: boolean;
-  /** LIVE・LIVE映像：映像を持っている（v0.5.0） */
+  /** イベント（LIVE・フェス）・映像作品：映像を持っている（v0.5.0） */
   videoOwned: VideoOwned;
   /** ゲーム：遊んだハード（Switch・スマホなど。v0.8.0） */
   platform: string;
@@ -106,6 +111,8 @@ export interface Work extends Base {
   isOriginal: boolean;
   /** 小説の置き場所（自宅・実家など。マンガは owned.place。v0.8.1） */
   shelfPlace: PaperPlace;
+  /** イベントの区分（イベント以外は null。v0.9.0） */
+  eventKind: EventKind;
 }
 
 export type ClearLevel = "clear" | "complete" | "partway" | null;
@@ -157,4 +164,22 @@ export interface BackupFile extends DataSet {
   app: "content-shelf";
   version: 1;
   exportedAt: string;
+}
+
+/** 写真の情報（バックアップのJSONに入れる。画像本体は ZIP の photos/ に別に入る） */
+export interface PhotoMeta {
+  id: string;
+  workId: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  byteSize: number;
+  createdAt: string;
+}
+
+/** IndexedDB の photos ストアに入る写真（画像本体つき） */
+export interface StoredPhoto extends PhotoMeta {
+  blob: Blob;
+  /** 一覧用の小さい写真（バックアップには入れず、取り込むときに作り直す） */
+  thumb?: Blob;
 }

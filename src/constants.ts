@@ -1,11 +1,11 @@
-import type { Medium, ProgressKind, WorkStatus } from "./types.js";
+import type { EventKind, Medium, ProgressKind, Work, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.8.2";
+export const APP_VERSION = "0.9.0";
 
 export const DB_NAME = "content-shelf";
-export const DB_VERSION = 2;
-/** 版2で people を足した */
+export const DB_VERSION = 3;
+/** 版2で people、版3で写真（photos。STORES とは別に読み書きする）を足した */
 export const STORES = ["franchises", "works", "logs", "people"] as const;
 
 export const MEDIUM_LABEL: Record<Medium, string> = {
@@ -16,8 +16,8 @@ export const MEDIUM_LABEL: Record<Medium, string> = {
   novel: "小説",
   movie: "映画",
   game: "ゲーム",
-  live: "LIVE・フェス",
-  video: "LIVE映像",
+  live: "イベント",
+  video: "映像作品",
   other: "その他",
 };
 
@@ -73,6 +73,40 @@ export function isReading(medium: Medium): boolean {
   return medium === "manga" || medium === "novel" || medium === "magazine";
 }
 
+/** イベントの区分（2026-11-03 本人：食べ物フェスや展示会も入れたい） */
+export const EVENT_KIND_LABEL: Record<Exclude<EventKind, null>, string> = {
+  live: "LIVE",
+  fes: "フェス",
+  food: "グルメ",
+  exhibit: "展示",
+  other: "その他",
+};
+
+/** LIVE・フェスか（区分が未設定のイベントもLIVEとして扱う）。セットリスト・映像・「参戦」はこのときだけ */
+export function isStageEvent(w: Pick<Work, "medium" | "eventKind">): boolean {
+  return w.medium === "live" && (w.eventKind === null || w.eventKind === "live" || w.eventKind === "fes");
+}
+
+/** 一覧の種類の札。イベントは区分を出す（例：グルメ） */
+export function mediumTag(w: Pick<Work, "medium" | "eventKind">): string {
+  if (w.medium === "live" && w.eventKind) return EVENT_KIND_LABEL[w.eventKind];
+  return MEDIUM_LABEL[w.medium];
+}
+
+/** 作品に合わせた状態の名前（イベントは区分で変わる） */
+export function workStatusWord(w: Pick<Work, "medium" | "eventKind">, status: WorkStatus): string {
+  if (w.medium === "live" && !isStageEvent(w) && status !== "paused") return status === "wish" ? "行く予定" : "行った";
+  return statusWord(w.medium, status);
+}
+
+/** 作品に合わせた人物の欄の名前 */
+export function workPeopleLabel(w: Pick<Work, "medium" | "eventKind">): string {
+  if (w.medium === "live" && w.eventKind === "exhibit") return "作家・出展";
+  if (w.medium === "live" && w.eventKind === "food") return "お店・出店";
+  if (w.medium === "live" && w.eventKind === "other") return "人物";
+  return peopleLabel(w.medium);
+}
+
 /** 状態の名前（名詞）。種類に合わせる（2026-11-01 本人「積読みたいな名詞がいい」） */
 export function statusWord(medium: Medium, status: WorkStatus): string {
   if (status === "paused") return "中断";
@@ -95,6 +129,14 @@ export function peopleLabel(medium: Medium): string {
   if (medium === "game") return "開発・メーカー";
   return "人物";
 }
+
+/** 写真の保存（季節日記と同じ考え方：縮小してWebP、だめならJPEG。EXIFは残らない） */
+export const PHOTO_STORE = "photos";
+export const PHOTO_MAX_EDGE = 1200;
+/** 一覧用の小さい写真の長辺。一覧の枠は最大でも幅120px前後なので、画面の細かさ（3倍）を見てこの大きさ */
+export const THUMB_MAX_EDGE = 360;
+export const PHOTO_WEBP_QUALITY = 0.8;
+export const PHOTO_JPEG_QUALITY = 0.82;
 
 /** AniListの情報を自動で確かめる間隔（12時間） */
 export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;

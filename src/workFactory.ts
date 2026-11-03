@@ -50,6 +50,8 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     ownFormat: null,
     isOriginal: false,
     shelfPlace: null,
+    eventKind: medium === "live" ? "live" : null,
+    coverPhotoId: null,
   };
 }
 

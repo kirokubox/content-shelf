@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import { LONG_PRESS_MS, MEDIUM_LABEL, UNIT_LABEL } from "./constants";
+import { CoverImg } from "./CoverImg";
+import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { latestLabel, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
@@ -46,7 +47,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
   const latest = latestLabel(work, today);
   return (
     <li className="work-card">
-      {work.coverUrl && <img className="cover-thumb card-cover" src={work.coverUrl} alt="" loading="lazy" onClick={() => onOpen(work)} />}
+      <CoverImg work={work} className="cover-thumb card-cover" onClick={() => onOpen(work)} />
       <div className="work-body">
         <button type="button" className="work-main" onClick={() => onOpen(work)}>
           <span className="work-title">
@@ -54,7 +55,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
             {work.seasonLabel && <span className="work-season"> {work.seasonLabel}</span>}
           </span>
           <span className="work-sub">
-            <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
+            <span className="medium-tag">{mediumTag(work)}</span>
             {[position, latest].filter(Boolean).join("・")}
           </span>
           <span className="work-sub dim">

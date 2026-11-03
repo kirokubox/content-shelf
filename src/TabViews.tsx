@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { MEDIUM_LABEL, doneWord, statusWord } from "./constants";
+import { CoverImg } from "./CoverImg";
+import { MEDIUM_LABEL, doneWord, mediumTag, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { Stars } from "./Screen";
@@ -66,8 +67,8 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
             {work.seasonLabel && <span className="work-season"> {work.seasonLabel}</span>}
           </span>
           <span className="list-sub">
-            <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
-            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : statusWord(work.medium, "done")}
+            <span className="medium-tag">{mediumTag(work)}</span>
+            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : workStatusWord(work, "done")}
           </span>
           {log?.note && <span className="list-sub wrap note-excerpt">{log.note}</span>}
         </span>
@@ -280,7 +281,7 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work)
           {items.map((r) => (
             <li key={r.key}>
               <button type="button" className="grid-tile" onClick={() => onOpen(r.work)}>
-                {r.work.coverUrl ? <img src={r.work.coverUrl} alt="" loading="lazy" /> : <span className="tile-title">{r.work.title}</span>}
+                <CoverImg work={r.work} fallback={<span className="tile-title">{r.work.title}</span>} />
                 <span className="tile-date">{formatLogDate(r.date, r.log?.datePrecision, undefined, true)}</span>
               </button>
             </li>

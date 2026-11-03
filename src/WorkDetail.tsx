@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CLEAR_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, peopleLabel, statusWord, wishWord } from "./constants";
+import { CoverImg } from "./CoverImg";
+import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { availableCount, latestLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
@@ -54,12 +55,12 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     if (work.status !== "done") statusItems.push({ label: work.medium === "manga" ? "読み終えた（記録へ）" : "見終えた（記録へ）", onClick: () => onSetStatus("done") });
   } else if (work.medium === "game") {
     // ゲームは続きを数えないが、プレイ中・中断を持つ
-    for (const s of ["active", "paused", "done", "wish"] as const) if (work.status !== s) statusItems.push({ label: `${statusWord(work.medium, s)}にする`, onClick: () => onSetStatus(s) });
+    for (const s of ["active", "paused", "done", "wish"] as const) if (work.status !== s) statusItems.push({ label: `${workStatusWord(work, s)}にする`, onClick: () => onSetStatus(s) });
   } else {
     if (work.status === "wish") statusItems.push({ label: `${doneWord(work.medium)}にする`, onClick: () => onSetStatus("done") });
     else statusItems.push({ label: `${wishWord(work.medium)}に戻す`, onClick: () => onSetStatus("wish") });
   }
-  if (work.status !== "wish" && kind !== "none") statusItems.push({ label: `${statusWord(work.medium, "wish")}にする`, onClick: () => onSetStatus("wish") });
+  if (work.status !== "wish" && kind !== "none") statusItems.push({ label: `${workStatusWord(work, "wish")}にする`, onClick: () => onSetStatus("wish") });
   statusItems.push({ label: "作品を削除", danger: true, onClick: onDelete });
 
   const schedule = work.schedule;
@@ -86,13 +87,13 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     >
       <section className="card">
         <div className="hero">
-          {work.coverUrl ? <img className="hero-cover" src={work.coverUrl} alt="" /> : <div className="hero-cover hero-cover-empty" aria-hidden="true">{MEDIUM_LABEL[work.medium].slice(0, 4)}</div>}
+          <CoverImg work={work} className="hero-cover" lazy={false} size="full" fallback={<div className="hero-cover hero-cover-empty" aria-hidden="true">{mediumTag(work).slice(0, 4)}</div>} />
           <div className="hero-body">
             <h2 className="hero-title">{work.title}</h2>
             {work.seasonLabel && <p className="hero-sub">{work.seasonLabel}</p>}
             <div className="hero-tags">
-              <span className="medium-tag">{MEDIUM_LABEL[work.medium]}</span>
-              <span className={`status-pill s-${work.status}`}>{statusWord(work.medium, work.status)}</span>
+              <span className="medium-tag">{mediumTag(work)}</span>
+              <span className={`status-pill s-${work.status}`}>{workStatusWord(work, work.status)}</span>
               {work.isOriginal && <span className="status-pill s-original">原作</span>}
             </div>
             {franchise && (
@@ -166,7 +167,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="映像" value={work.videoOwned ? `${VIDEO_OWNED_LABEL[work.videoOwned]}を持っている` : null} />
           <Row label={work.medium === "manga" ? "読み終えた日" : "見終えた日"} value={doneAt ? formatDate(isoToDateKey(doneAt), today) : null} />
           <Row
-            label={peopleLabel(work.medium)}
+            label={workPeopleLabel(work)}
             value={
               people.length > 0 ? (
                 <span className="row-chips">

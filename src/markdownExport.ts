@@ -1,5 +1,5 @@
 // 全記録をテキスト（Markdown）で書き出す。好きなもの台帳やAIの振り返りの材料（仕様181 §6.1）
-import { CLEAR_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, statusWord } from "./constants.js";
+import { CLEAR_LABEL, EVENT_KIND_LABEL, MEDIUM_LABEL, OWN_FORMAT_LABEL, workStatusWord } from "./constants.js";
 import { isoToDateKey } from "./dateUtils.js";
 import { logInRange } from "./exportRange.js";
 import { personNames } from "./linkLogic.js";
@@ -41,7 +41,8 @@ export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from:
     for (const w of works) {
       const fr = w.franchiseId ? data.franchises.find((f) => f.id === w.franchiseId)?.title : undefined;
       const people = personNames(data, w.personIds);
-      const head = [w.title + (w.seasonLabel ? ` ${w.seasonLabel}` : ""), statusWord(w.medium, w.status)];
+      const head = [w.title + (w.seasonLabel ? ` ${w.seasonLabel}` : ""), workStatusWord(w, w.status)];
+      if (w.medium === "live" && w.eventKind) head.push(EVENT_KIND_LABEL[w.eventKind]);
       if (w.isOriginal) head.push("原作");
       if (w.platform) head.push(w.platform);
       if (w.clearLevel) head.push(CLEAR_LABEL[w.clearLevel]);

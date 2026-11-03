@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { MEDIUM_LABEL, statusWord } from "./constants";
+import { CoverImg } from "./CoverImg";
+import { MEDIUM_LABEL, mediumTag, workStatusWord } from "./constants";
 import { formatLogDate } from "./dateUtils";
 import { worksOfFranchise, worksOfPerson } from "./linkLogic";
 import { positionLabel, progressKindOf } from "./progressLogic";
@@ -17,7 +18,7 @@ const lastDateOf = (data: DataSet, workId: string): string | null => lastLogOf(d
 /** 一覧の2行目：状態と位置（見終えた作品・見たい作品は状態だけ） */
 function subText(w: Work): string {
   const pos = progressKindOf(w) !== "none" && (w.status === "active" || w.status === "paused") ? positionLabel(w) : "";
-  return [statusWord(w.medium, w.status), pos].filter(Boolean).join("・");
+  return [workStatusWord(w, w.status), pos].filter(Boolean).join("・");
 }
 
 function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void; originalFirst?: boolean }) {
@@ -30,14 +31,14 @@ function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works
         return (
           <li key={w.id}>
             <button type="button" className="list-row" onClick={() => onOpen(w)}>
-              {w.coverUrl ? <img className="cover-thumb" src={w.coverUrl} alt="" loading="lazy" /> : <span className="cover-thumb cover-empty" aria-hidden="true" />}
+              <CoverImg work={w} className="cover-thumb" fallback={<span className="cover-thumb cover-empty" aria-hidden="true" />} />
               <span className="list-main">
                 <span className="list-name">
                   {w.title}
                   {w.seasonLabel && <span className="work-season"> {w.seasonLabel}</span>}
                 </span>
                 <span className="list-sub">
-                  <span className="medium-tag">{MEDIUM_LABEL[w.medium]}</span>
+                  <span className="medium-tag">{mediumTag(w)}</span>
                   {w.isOriginal && <span className="medium-tag original-tag">原作</span>}
                   {subText(w)}
                 </span>

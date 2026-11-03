@@ -53,7 +53,7 @@ test("テキストの書き出しに、感想・人物・セットリストが�
     logs: [newLog({ workId: live.id, kind: "view", date: "2026-10-11", note: "最高だった", rating: 5 }, NOW)],
   };
   const md = buildMarkdown(data, NOW);
-  assert.match(md, /## LIVE・フェス（1）/);
+  assert.match(md, /## イベント（1）/);
   assert.match(md, /人物：出演者A/);
   assert.match(md, /セットリスト：曲1 \/ 曲2/);
   assert.match(md, /最高だった/);

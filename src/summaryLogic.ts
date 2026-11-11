@@ -1,11 +1,16 @@
 // 集計：作品数と回数・話数を混同しない（仕様181 §4.5）
 import { PROGRESS_KIND } from "./constants.js";
+import { exportRange } from "./exportRange.js";
 import type { DataSet, Log, Medium } from "./types.js";
 import { MEDIA } from "./types.js";
 
-export type Period = "month" | "year" | "all";
+export type Period = "week" | "month" | "year" | "all";
 
 export function periodRange(period: Period, today: string): { from: string; to: string } {
+  if (period === "week") {
+    const { from, to } = exportRange("week", today, 0);
+    return { from, to };
+  }
   if (period === "month") return { from: `${today.slice(0, 7)}-01`, to: `${today.slice(0, 7)}-31` };
   if (period === "year") return { from: `${today.slice(0, 4)}-01-01`, to: `${today.slice(0, 4)}-12-31` };
   return { from: "0000-01-01", to: "9999-12-31" };
@@ -31,8 +36,10 @@ export function summarize(data: DataSet, period: Period, today: string): MediumS
   const map = new Map<Medium, { works: Set<string>; count: number }>();
   for (const l of logs) {
     if (l.date < from || l.date > to) continue;
-    // 年だけの記録は今月の集計に入れない（1月1日として持っているため）
-    if (period === "month" && l.datePrecision === "year") continue;
+    // 年だけの記録は月・週の集計に入れない（1月1日として持っているため）
+    if ((period === "month" || period === "week") && l.datePrecision === "year") continue;
+    // 月だけの記録も、特定の1週間には割り当てない（週次書き出しと同じ）
+    if (period === "week" && l.datePrecision === "month") continue;
     const m = mediumOf.get(l.workId)!;
     const cur = map.get(m) ?? { works: new Set<string>(), count: 0 };
     cur.works.add(l.workId);

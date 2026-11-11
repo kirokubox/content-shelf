@@ -343,7 +343,20 @@ export default function App() {
           const w = workById(o.workId);
           const log = data.logs.find((l) => l.id === o.logId && l.deletedAt === null);
           if (!w || w.deletedAt !== null || !log) return null;
-          return <LogDetail key={key} work={w} log={log} today={today} onBack={pop} onEdit={() => setSheet({ workId: w.id, log, newKind: log.kind })} />;
+          return (
+            <LogDetail
+              key={key}
+              work={w}
+              log={log}
+              logs={data.logs}
+              today={today}
+              onBack={pop}
+              onEdit={() => setSheet({ workId: w.id, log, newKind: log.kind })}
+              onAddLog={() => setSheet({ workId: w.id, log: null, newKind: "view" })}
+              onOpenWork={() => push({ kind: "detail", workId: w.id })}
+              onOpenLog={(next) => setStack((current) => [...current.slice(0, -1), { kind: "log", workId: w.id, logId: next.id }])}
+            />
+          );
         }
         const w = workById(o.workId);
         if (!w || w.deletedAt !== null) return null;

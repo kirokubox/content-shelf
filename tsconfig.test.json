@@ -23,6 +23,7 @@
     "src/workFactory.ts",
     "src/dataOps.ts",
     "src/linkLogic.ts",
+    "src/logReaderLogic.ts",
     "src/markdownExport.ts",
     "src/exportRange.ts",
     "src/anilist.ts",

@@ -2,13 +2,27 @@ import { CoverImg } from "./CoverImg";
 import { UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, formatLogDate } from "./dateUtils";
 import { Icon } from "./Icon";
+import { addReaderLogLabel, readerPosition } from "./logReaderLogic";
 import { progressKindOf } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
 import type { Log, Work } from "./types";
 
-export function LogDetail({ work, log, today, onBack, onEdit }: { work: Work; log: Log; today: string; onBack: () => void; onEdit: () => void }) {
+interface Props {
+  work: Work;
+  log: Log;
+  logs: Log[];
+  today: string;
+  onBack: () => void;
+  onEdit: () => void;
+  onAddLog: () => void;
+  onOpenWork: () => void;
+  onOpenLog: (log: Log) => void;
+}
+
+export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, onOpenWork, onOpenLog }: Props) {
   const kind = progressKindOf(work);
   const position = log.position !== null ? `第${log.position}${UNIT_LABEL[kind] || "回"}` : "";
+  const reader = readerPosition(logs, work.id, log.id);
   return (
     <Screen
       title="記録を読む"
@@ -28,6 +42,15 @@ export function LogDetail({ work, log, today, onBack, onEdit }: { work: Work; lo
         </div>
       </section>
       <section className="card">
+        {reader.total > 1 && (
+          <div className="log-reader-nav">
+            <span className="muted small">{reader.total}件中 {reader.index + 1}件目</span>
+            <div>
+              <button type="button" className="secondary-btn" disabled={!reader.previous} onClick={() => reader.previous && onOpenLog(reader.previous)}>前の記録</button>
+              <button type="button" className="secondary-btn" disabled={!reader.next} onClick={() => reader.next && onOpenLog(reader.next)}>次の記録</button>
+            </div>
+          </div>
+        )}
         <div className="log-reader-meta">
           <strong>{formatLogDate(log.date, log.datePrecision, today)}</strong>
           {position && <span>{position}</span>}
@@ -39,6 +62,10 @@ export function LogDetail({ work, log, today, onBack, onEdit }: { work: Work; lo
           <span className="field-label">感想・メモ</span>
           {log.note ? <p>{log.note}</p> : <p className="muted">感想・メモはありません。</p>}
         </div>
+      </section>
+      <section className="card log-reader-actions">
+        <button type="button" className="primary-btn" onClick={onAddLog}>{addReaderLogLabel(work)}</button>
+        <button type="button" className="secondary-btn" onClick={onOpenWork}>作品を開く</button>
       </section>
     </Screen>
   );

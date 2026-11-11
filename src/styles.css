@@ -424,6 +424,10 @@ textarea.text-input { font: inherit; resize: vertical; line-height: 1.6; padding
 .log-reader-rating { margin-top: var(--kb-space-3); }
 .log-reader-note { margin-top: var(--kb-space-4); padding-top: var(--kb-space-3); border-top: 1px solid var(--kb-line); }
 .log-reader-note p { margin: var(--kb-space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
+.log-reader-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-2); margin-bottom: var(--kb-space-3); padding-bottom: var(--kb-space-3); border-bottom: 1px solid var(--kb-line); }
+.log-reader-nav > div { display: flex; gap: var(--kb-space-2); }
+.log-reader-nav .secondary-btn { padding: 8px 10px; }
+.log-reader-actions { display: grid; gap: var(--kb-space-2); }
 .record-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--kb-space-2); }
 .grid-tile {
   width: 100%; aspect-ratio: 2 / 3; display: flex; flex-direction: column; justify-content: space-between; padding: var(--kb-space-2); overflow: hidden;

@@ -95,10 +95,10 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onO
     [data.works, handlers.today],
   );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
-  const totals = useMemo(() => summarize(data, "all", handlers.today), [data, handlers.today]);
+  const totals = useMemo(() => summarize(data, "week", handlers.today), [data, handlers.today]);
   const totalWorks = totals.reduce((sum, row) => sum + row.works, 0);
   const totalLogs = totals.reduce((sum, row) => sum + row.count, 0);
-  const totalDone = completedWorks(data, "all", handlers.today);
+  const totalDone = completedWorks(data, "week", handlers.today);
   if (data.works.filter((w) => w.deletedAt === null).length === 0) {
     return (
       <section className="card">
@@ -121,11 +121,11 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onO
         </div>
       </section>
       <section className="card home-summary">
-        <p className="summary-label">これまでの記録</p>
+        <p className="summary-label">今週の記録</p>
         <p className="summary-main">{totalLogs}<span className="summary-unit">件</span></p>
         <dl className="summary-sub">
-          <div><dt>記録した作品</dt><dd>{totalWorks}</dd></div>
-          <div><dt>最後まで</dt><dd>{totalDone}</dd></div>
+          <div><dt>今週の作品</dt><dd>{totalWorks}</dd></div>
+          <div><dt>今週完了</dt><dd>{totalDone}</dd></div>
           <div><dt>種類</dt><dd>{totals.length}</dd></div>
         </dl>
       </section>

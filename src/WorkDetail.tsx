@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CoverImg } from "./CoverImg";
 import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
@@ -44,6 +44,16 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume, onStartAgain }: Props) {
   const unpurchased = unpurchasedCount(work);
   const [menu, setMenu] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const hasCover = Boolean(work.coverPhotoId || work.coverUrl);
+  useEffect(() => {
+    if (!coverOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCoverOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [coverOpen]);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
   const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
@@ -87,7 +97,13 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     >
       <section className="card">
         <div className="hero">
-          <CoverImg work={work} className="hero-cover" lazy={false} size="full" fallback={<div className="hero-cover hero-cover-empty" aria-hidden="true">{mediumTag(work).slice(0, 4)}</div>} />
+          {hasCover ? (
+            <button type="button" className="hero-cover-button" aria-label="表紙を拡大" onClick={() => setCoverOpen(true)}>
+              <CoverImg work={work} className="hero-cover" lazy={false} size="full" />
+            </button>
+          ) : (
+            <div className="hero-cover hero-cover-empty" aria-hidden="true">{mediumTag(work).slice(0, 4)}</div>
+          )}
           <div className="hero-body">
             <h2 className="hero-title">{work.title}</h2>
             {work.seasonLabel && <p className="hero-sub">{work.seasonLabel}</p>}
@@ -223,6 +239,14 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           </ul>
         )}
       </section>
+      {coverOpen && (
+        <div className="cover-viewer" role="dialog" aria-modal="true" aria-label={`${work.title}の表紙`} onClick={() => setCoverOpen(false)}>
+          <CoverImg work={work} className="cover-viewer-image" lazy={false} size="full" />
+          <button type="button" className="cover-viewer-close" aria-label="表紙を閉じる" onClick={() => setCoverOpen(false)}>
+            <Icon name="close" size={24} />
+          </button>
+        </div>
+      )}
     </Screen>
   );
 }

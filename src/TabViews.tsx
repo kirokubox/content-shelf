@@ -61,6 +61,7 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
   return (
     <li>
       <button type="button" className="list-row" onClick={() => onOpen(work)}>
+        <CoverImg work={work} className="cover-thumb record-cover" />
         <span className="list-main">
           <span className="list-name">
             {work.title}

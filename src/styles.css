@@ -400,6 +400,7 @@ textarea.text-input { font: inherit; resize: vertical; line-height: 1.6; padding
 .year-select { min-height: 36px; padding: 0 var(--kb-space-2); width: auto; }
 .count-line { margin: calc(-1 * var(--kb-space-2)) 0 0; }
 .record-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.record-cover { width: 34px; height: 48px; }
 .note-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--kb-text); }
 .record-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--kb-space-2); }
 .grid-tile {
@@ -512,7 +513,12 @@ button.star { min-width: 36px; min-height: 36px; align-items: center; justify-co
 /* v0.7.0：作品の詳細（表紙＋題名＋状態、続きの進み具合） */
 .hero { display: flex; gap: var(--kb-space-3); align-items: flex-start; }
 .hero-cover { flex: none; width: 76px; height: 108px; border-radius: var(--kb-radius-s); object-fit: cover; background: var(--kb-surface-2); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15); }
+.hero-cover-button { flex: none; border: 0; border-radius: var(--kb-radius-s); padding: 0; background: transparent; cursor: zoom-in; }
+.hero-cover-button:focus-visible { outline: 2px solid var(--kb-accent); outline-offset: 2px; }
 .hero-cover-empty { display: flex; align-items: center; justify-content: center; color: var(--kb-text-3); font-size: var(--kb-fs-xs); font-weight: 600; box-shadow: none; }
+.cover-viewer { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: max(48px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom)); background: rgba(8, 15, 24, 0.88); cursor: zoom-out; }
+.cover-viewer-image { display: block; max-width: min(100%, 720px); max-height: calc(100vh - 96px); width: auto; height: auto; object-fit: contain; border-radius: var(--kb-radius-s); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4); }
+.cover-viewer-close { position: absolute; top: max(8px, env(safe-area-inset-top)); right: 8px; display: grid; place-items: center; width: var(--kb-tap); height: var(--kb-tap); border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.12); }
 .hero-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--kb-space-1); }
 .card .hero-title { margin: 0; font-size: var(--kb-fs-l); line-height: 1.4; overflow-wrap: anywhere; }
 .card .hero-sub { margin: 0; color: var(--kb-text-2); font-size: var(--kb-fs-s); line-height: 1.4; }

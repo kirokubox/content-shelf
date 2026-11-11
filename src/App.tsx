@@ -6,6 +6,7 @@ import { MEDIUM_LABEL, REFRESH_INTERVAL_MS, workStatusWord } from "./constants";
 import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
+import { LogDetail } from "./LogDetail";
 import { LogSheet } from "./LogSheet";
 import { markBoughtNext, markNewVolume, progressKindOf, startAgain, stepForward, withAutoStatus } from "./progressLogic";
 import { FranchiseView, PersonView } from "./RelationViews";
@@ -26,6 +27,7 @@ type Overlay =
   | { kind: "search" }
   | { kind: "settings" }
   | { kind: "detail"; workId: string }
+  | { kind: "log"; workId: string; logId: string }
   | { kind: "editor"; workId: string | null; medium: Medium; pick?: AnilistMedia }
   | { kind: "pickMedium" }
   | { kind: "franchise"; id: string }
@@ -168,6 +170,10 @@ export default function App() {
     onStep: (w: Work) => step(w),
     onStepWithDate: (w: Work) => setSheet({ workId: w.id, log: null, newKind: "progress" }),
   };
+  const openRecord = (item: import("./TabViews").RecordItem) => {
+    if (item.log) push({ kind: "log", workId: item.work.id, logId: item.log.id });
+    else push({ kind: "detail", workId: item.work.id });
+  };
 
   const defaultMedium: Medium = "anime";
   const openAdd = () => push({ kind: "pickMedium" });
@@ -198,11 +204,11 @@ export default function App() {
       </header>
       <main className="content" key={tab}>
         {!loaded ? null : tab === "home" ? (
-          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoRecords={() => setTab("records")} />
+          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} />
         ) : tab === "continue" ? (
           <ContinueView data={data} handlers={handlers} onAdd={openAdd} />
         ) : tab === "records" ? (
-          <RecordsView data={data} onOpen={handlers.onOpen} />
+          <RecordsView data={data} onOpen={openRecord} />
         ) : (
           <SummaryView data={data} today={today} />
         )}
@@ -333,6 +339,12 @@ export default function App() {
             />
           );
         }
+        if (o.kind === "log") {
+          const w = workById(o.workId);
+          const log = data.logs.find((l) => l.id === o.logId && l.deletedAt === null);
+          if (!w || w.deletedAt !== null || !log) return null;
+          return <LogDetail key={key} work={w} log={log} today={today} onBack={pop} onEdit={() => setSheet({ workId: w.id, log, newKind: log.kind })} />;
+        }
         const w = workById(o.workId);
         if (!w || w.deletedAt !== null) return null;
         return (
@@ -349,7 +361,7 @@ export default function App() {
             onEdit={() => push({ kind: "editor", workId: w.id, medium: w.medium })}
             onStep={(x) => step(x)}
             onAddLog={(kind) => setSheet({ workId: w.id, log: null, newKind: kind })}
-            onEditLog={(log) => setSheet({ workId: w.id, log, newKind: log.kind })}
+            onEditLog={(log) => push({ kind: "log", workId: w.id, logId: log.id })}
             onSetStatus={(s) => setStatus(w, s)}
             onDelete={() => setConfirmDelete(w)}
             onBought={() => bought(w)}

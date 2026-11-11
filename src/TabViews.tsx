@@ -9,7 +9,7 @@ import type { Period } from "./summaryLogic";
 import type { DataSet, Log, Medium, Work } from "./types";
 import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
-import { continueGroup, hasNext, unpurchasedCount } from "./progressLogic";
+import { continueGroup, hasNext, unconsumedCount, unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
   today: string;
@@ -56,11 +56,11 @@ function Empty({ text, onAdd }: { text: string; onAdd?: () => void }) {
   );
 }
 
-function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => void }) {
+function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordItem) => void }) {
   const { work, log } = item;
   return (
     <li>
-      <button type="button" className="list-row" onClick={() => onOpen(work)}>
+      <button type="button" className="list-row" onClick={() => onOpen(item)}>
         <CoverImg work={work} className="cover-thumb record-cover" />
         <span className="list-main">
           <span className="list-name">
@@ -82,12 +82,23 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (w: Work) => vo
   );
 }
 
-export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void }) {
-  const recent = useMemo(
-    () => data.works.filter((w) => w.deletedAt === null && continueGroup(w) === "following").sort((a, b) => Number(hasNext(b, handlers.today)) - Number(hasNext(a, handlers.today)) || b.touchedAt.localeCompare(a.touchedAt)).slice(0, 5),
+export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onOpenRecord }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
+  const covers = useMemo(
+    () => data.works.filter((w) => w.deletedAt === null).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 12),
     [data.works],
   );
+  const waiting = useMemo(
+    () => data.works
+      .filter((w) => w.deletedAt === null && continueGroup(w) === "following" && hasNext(w, handlers.today))
+      .sort((a, b) => (unconsumedCount(b, handlers.today) ?? 0) - (unconsumedCount(a, handlers.today) ?? 0) || b.touchedAt.localeCompare(a.touchedAt))
+      .slice(0, 5),
+    [data.works, handlers.today],
+  );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
+  const totals = useMemo(() => summarize(data, "all", handlers.today), [data, handlers.today]);
+  const totalWorks = totals.reduce((sum, row) => sum + row.works, 0);
+  const totalLogs = totals.reduce((sum, row) => sum + row.count, 0);
+  const totalDone = completedWorks(data, "all", handlers.today);
   if (data.works.filter((w) => w.deletedAt === null).length === 0) {
     return (
       <section className="card">
@@ -100,24 +111,27 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords }: {
   }
   return (
     <>
-      <section className="card list-card">
-        <button type="button" className="list-head link-head" onClick={onGoContinue}>
-          <h2>最近の続き</h2>
-          <Icon name="chevron-right" size={18} />
-        </button>
-        {recent.length === 0 ? (
-          <p className="muted pad">進行中の作品はありません。</p>
-        ) : (
-          <ul className="work-list">
-            {recent.map((w) => (
-              <WorkCard key={w.id} work={w} {...handlers} />
-            ))}
-          </ul>
-        )}
+      <section className="home-shelf" aria-label="最近触った作品">
+        <div className="cover-strip">
+          {covers.map((work) => (
+            <button key={work.id} type="button" className="shelf-cover" onClick={() => handlers.onOpen(work)} aria-label={work.title}>
+              <CoverImg work={work} className="shelf-cover-image" fallback={<span className="shelf-cover-title">{work.title}</span>} />
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="card home-summary">
+        <p className="summary-label">これまでの記録</p>
+        <p className="summary-main">{totalLogs}<span className="summary-unit">件</span></p>
+        <dl className="summary-sub">
+          <div><dt>記録した作品</dt><dd>{totalWorks}</dd></div>
+          <div><dt>最後まで</dt><dd>{totalDone}</dd></div>
+          <div><dt>種類</dt><dd>{totals.length}</dd></div>
+        </dl>
       </section>
       <section className="card list-card">
         <button type="button" className="list-head link-head" onClick={onGoRecords}>
-          <h2>最近の作品・体験</h2>
+          <h2>直近の記録</h2>
           <Icon name="chevron-right" size={18} />
         </button>
         {records.length === 0 ? (
@@ -125,7 +139,22 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords }: {
         ) : (
           <ul className="list">
             {records.map((r) => (
-              <RecordRow key={r.key} item={r} onOpen={handlers.onOpen} />
+              <RecordRow key={r.key} item={r} onOpen={onOpenRecord} />
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="card list-card">
+        <button type="button" className="list-head link-head" onClick={onGoContinue}>
+          <h2>続きで溜まっているもの</h2>
+          <Icon name="chevron-right" size={18} />
+        </button>
+        {waiting.length === 0 ? (
+          <p className="muted pad">いま溜まっている続きはありません。</p>
+        ) : (
+          <ul className="work-list">
+            {waiting.map((w) => (
+              <WorkCard key={w.id} work={w} {...handlers} />
             ))}
           </ul>
         )}
@@ -239,7 +268,7 @@ export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handler
   );
 }
 
-export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work) => void }) {
+export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (item: RecordItem) => void }) {
   const [mode, setMode] = useState<"list" | "grid">("list");
   const [medium, setMedium] = useState<Medium | null>(null);
   const [year, setYear] = useState<string | null>(null);
@@ -281,7 +310,7 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (w: Work)
         <ul className="record-grid">
           {items.map((r) => (
             <li key={r.key}>
-              <button type="button" className="grid-tile" onClick={() => onOpen(r.work)}>
+              <button type="button" className="grid-tile" onClick={() => onOpen(r)}>
                 <CoverImg work={r.work} fallback={<span className="tile-title">{r.work.title}</span>} />
                 <span className="tile-date">{formatLogDate(r.date, r.log?.datePrecision, undefined, true)}</span>
               </button>

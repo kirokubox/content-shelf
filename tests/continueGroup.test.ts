@@ -14,6 +14,16 @@ test("追っている＝アニメ・週刊誌・新刊を買うマンガ、読�
   assert.equal(continueGroup({ ...emptyWork("movie", NOW), title: "a", status: "active" }), null);
 });
 
+test("未購入があるマンガは状態に関係なく追っているへ出し、買い終わると元の状態どおり外れる", () => {
+  const base = {
+    ...emptyWork("manga", NOW), title: "m", buying: true, latestKnown: 3,
+    owned: { known: true, ranges: [{ from: 1, to: 2 }], medium: null, place: null },
+  };
+  for (const status of ["done", "wish", "paused"] as const) assert.equal(continueGroup({ ...base, status }), "following");
+  assert.equal(continueGroup({ ...base, status: "done", owned: { ...base.owned, ranges: [{ from: 1, to: 3 }] } }), null);
+  assert.equal(continueGroup({ ...emptyWork("novel", NOW), status: "done", buying: true, latestKnown: 3 }), null);
+});
+
 test("追いついた作品は「やることがない」になり、たたむ側へ", () => {
   const caught = { ...emptyWork("anime", NOW), title: "a", latestKnown: 5, progress: 5 };
   assert.equal(hasNext(caught, "2026-11-01"), false);

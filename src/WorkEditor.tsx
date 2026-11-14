@@ -478,7 +478,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
           <div className="two-col">
             <label className="field">
               <span className="field-label">持っている巻</span>
-              <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 7" />
+              <input className="text-input" value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="例：1-5, 8, 12-18" />
             </label>
             <label className="field">
               <span className="field-label">版</span>

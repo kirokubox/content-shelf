@@ -3,7 +3,7 @@ import { CoverImg } from "./CoverImg";
 import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
-import { latestLabel, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { latestLabel, ownedGapSummary, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import type { Work } from "./types";
 
 /** 押して離したら onTap、長押しなら onLong（＋1の長押しで日付を選ぶ） */
@@ -40,6 +40,7 @@ interface Props {
 
 export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought }: Props) {
   const unpurchased = unpurchasedCount(work);
+  const gaps = ownedGapSummary(work);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
   const press = useLongPress(() => onStep(work), () => onStepWithDate(work));
@@ -60,6 +61,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
           </span>
           <span className="work-sub dim">
             最終 {formatDateShort(isoToDateKey(work.touchedAt))}
+            {gaps.count > 0 && <span className="gap-note">抜け {gaps.count}巻</span>}
           </span>
         </button>
         {unpurchased > 0 && (
@@ -68,13 +70,13 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
           </button>
         )}
       </div>
-      {unconsumed !== null && unconsumed > 0 && (
+      {work.status === "active" && unconsumed !== null && unconsumed > 0 && (
         <span className="unconsumed" aria-label={`未消化 ${unconsumed}`}>
           <span className="unconsumed-num">{unconsumed}</span>
           <span className="unconsumed-label">未消化</span>
         </span>
       )}
-      {kind !== "none" && work.status !== "done" && (
+      {kind !== "none" && work.status === "active" && (
         <button type="button" className="step-btn" aria-label={`次の${UNIT_LABEL[kind]}を記録（長押しで日付を選ぶ）`} {...press}>
           <Icon name="plus" size={16} />
           <span>1{UNIT_LABEL[kind]}</span>

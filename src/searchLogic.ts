@@ -9,6 +9,33 @@ export function normalize(text: string): string {
     .replace(/\s+/g, "");
 }
 
+export const RECENT_SEARCH_LIMIT = 8;
+
+/** localStorageから読んだ値を、安全な最近の検索語へ整える。 */
+export function parseRecentSearches(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const term = raw.trim();
+    if (!term || out.some((item) => normalize(item) === normalize(term))) continue;
+    out.push(term);
+    if (out.length === RECENT_SEARCH_LIMIT) break;
+  }
+  return out;
+}
+
+/** 結果があった検索語だけを先頭へ。表記ゆれを含む同じ語は1つにする。 */
+export function rememberRecentSearch(recent: string[], query: string, hasResults: boolean): string[] {
+  const term = query.trim();
+  if (!hasResults || !term) return parseRecentSearches(recent);
+  return [term, ...recent.filter((item) => normalize(item) !== normalize(term))].slice(0, RECENT_SEARCH_LIMIT);
+}
+
+export function removeRecentSearch(recent: string[], query: string): string[] {
+  return recent.filter((item) => normalize(item) !== normalize(query));
+}
+
 export interface SearchHit {
   work: Work;
   /** 感想・メモで当たった記録 */

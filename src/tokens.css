@@ -28,6 +28,19 @@
   --kb-warning-soft: #fdf6e3;
   --kb-toast: #263238;
 
+  /* 表紙画像が無い作品の種類色。濃い面＋白文字にして、明るい画面・暗い画面のどちらでも題名を読む。 */
+  --kb-cover-text: #ffffff;
+  --kb-cover-anime: #73518f;
+  --kb-cover-drama: #405f7a;
+  --kb-cover-magazine: #786233;
+  --kb-cover-manga: #8a4f5d;
+  --kb-cover-novel: #4e6f5d;
+  --kb-cover-movie: #344f6b;
+  --kb-cover-game: #4f5f91;
+  --kb-cover-live: #8a573c;
+  --kb-cover-video: #66527e;
+  --kb-cover-other: #5d676d;
+
   /* 角丸 */
   --kb-radius-s: 8px;
   --kb-radius-m: 12px;

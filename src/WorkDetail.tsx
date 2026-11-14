@@ -3,7 +3,7 @@ import { CoverImg } from "./CoverImg";
 import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
-import { availableCount, latestLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { availableCount, latestLabel, ownedGapSummary, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesText } from "./WorkEditor";
@@ -43,6 +43,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume, onStartAgain }: Props) {
   const unpurchased = unpurchasedCount(work);
+  const gaps = ownedGapSummary(work);
   const [menu, setMenu] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const hasCover = Boolean(work.coverPhotoId || work.coverUrl);
@@ -101,9 +102,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
             <button type="button" className="hero-cover-button" aria-label="表紙を拡大" onClick={() => setCoverOpen(true)}>
               <CoverImg work={work} className="hero-cover" lazy={false} size="full" />
             </button>
-          ) : (
-            <div className="hero-cover hero-cover-empty" aria-hidden="true">{mediumTag(work).slice(0, 4)}</div>
-          )}
+          ) : <CoverImg work={work} className="hero-cover" lazy={false} size="full" />}
           <div className="hero-body">
             <h2 className="hero-title">{work.title}</h2>
             {work.seasonLabel && <p className="hero-sub">{work.seasonLabel}</p>}
@@ -175,6 +174,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="休みの週" value={schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map((x) => formatDateShort(x)).join("、") : null} />
           <Row label="新刊" value={work.buying ? (unpurchased > 0 ? `買う・未購入 ${unpurchased}巻` : "買う・買い終わっている") : null} />
           <Row label="持っている巻" value={work.owned?.ranges.length ? `${rangesText(work.owned.ranges)}巻` : null} />
+          <Row label="抜け" value={gaps.count > 0 ? `${gaps.count}巻（${gaps.text}）` : null} />
           <Row label="形" value={ownedText} />
           <Row label="版" value={work.edition} />
           <Row label="ハード" value={work.platform} />

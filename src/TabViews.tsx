@@ -9,7 +9,7 @@ import type { Period } from "./summaryLogic";
 import type { DataSet, Log, Medium, Work } from "./types";
 import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
-import { continueGroup, hasNext, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { continueGroup, hasNext, ownedGapSummary, unconsumedCount, unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
   today: string;
@@ -115,7 +115,8 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onO
         <div className="cover-strip">
           {covers.map((work) => (
             <button key={work.id} type="button" className="shelf-cover" onClick={() => handlers.onOpen(work)} aria-label={work.title}>
-              <CoverImg work={work} className="shelf-cover-image" fallback={<span className="shelf-cover-title">{work.title}</span>} />
+              <CoverImg work={work} className="shelf-cover-image" />
+              {ownedGapSummary(work).count > 0 && <span className="cover-gap-badge">抜け {ownedGapSummary(work).count}巻</span>}
             </button>
           ))}
         </div>
@@ -311,7 +312,7 @@ export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (item: Re
           {items.map((r) => (
             <li key={r.key}>
               <button type="button" className="grid-tile" onClick={() => onOpen(r)}>
-                <CoverImg work={r.work} fallback={<span className="tile-title">{r.work.title}</span>} />
+                <CoverImg work={r.work} />
                 <span className="tile-date">{formatLogDate(r.date, r.log?.datePrecision, undefined, true)}</span>
               </button>
             </li>

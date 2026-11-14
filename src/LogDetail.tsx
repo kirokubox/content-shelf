@@ -34,7 +34,7 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
       }
     >
       <section className="card log-reader-head">
-        <CoverImg work={work} className="log-reader-cover" lazy={false} size="full" fallback={<div className="log-reader-cover empty-cover">{work.title}</div>} />
+        <CoverImg work={work} className="log-reader-cover" lazy={false} size="full" />
         <div className="log-reader-title">
           <span className="medium-tag">{mediumTag(work)}</span>
           <h2>{work.title}</h2>

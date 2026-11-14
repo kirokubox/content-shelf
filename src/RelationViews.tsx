@@ -3,7 +3,7 @@ import { CoverImg } from "./CoverImg";
 import { MEDIUM_LABEL, mediumTag, workStatusWord } from "./constants";
 import { formatLogDate } from "./dateUtils";
 import { worksOfFranchise, worksOfPerson } from "./linkLogic";
-import { positionLabel, progressKindOf } from "./progressLogic";
+import { ownedGapSummary, positionLabel, progressKindOf } from "./progressLogic";
 import { MoreMenu, Screen } from "./Screen";
 import type { DataSet, Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
@@ -31,7 +31,7 @@ function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works
         return (
           <li key={w.id}>
             <button type="button" className="list-row" onClick={() => onOpen(w)}>
-              <CoverImg work={w} className="cover-thumb" fallback={<span className="cover-thumb cover-empty" aria-hidden="true" />} />
+              <CoverImg work={w} className="cover-thumb" />
               <span className="list-main">
                 <span className="list-name">
                   {w.title}
@@ -41,6 +41,7 @@ function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works
                   <span className="medium-tag">{mediumTag(w)}</span>
                   {w.isOriginal && <span className="medium-tag original-tag">原作</span>}
                   {subText(w)}
+                  {ownedGapSummary(w).count > 0 && <span className="gap-note">抜け {ownedGapSummary(w).count}巻</span>}
                 </span>
               </span>
               {last && <span className="list-sub">{formatLogDate(last.date, last.datePrecision, undefined, true)}</span>}

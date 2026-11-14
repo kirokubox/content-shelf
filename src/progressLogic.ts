@@ -2,7 +2,7 @@
 // 外部情報なしで動く（仕様181 §5.1）。かぞえ帳の「毎週たまる」と同じ考え方。
 import { PROGRESS_KIND } from "./constants.js";
 import { addDays, nowIso } from "./dateUtils.js";
-import type { Log, ProgressKind, WeeklySchedule, Work } from "./types.js";
+import type { Log, ProgressKind, VolumeRange, WeeklySchedule, Work } from "./types.js";
 
 export function progressKindOf(work: Pick<Work, "medium">): ProgressKind {
   return PROGRESS_KIND[work.medium];
@@ -139,6 +139,37 @@ export function ownedMax(work: Work): number {
   return work.owned.ranges.reduce((m, r) => Math.max(m, r.to), 0);
 }
 
+export interface OwnedGapSummary {
+  count: number;
+  ranges: VolumeRange[];
+  text: string;
+}
+
+/** 1巻から所持最大巻までの間にある抜け。未購入（所持最大巻より後ろ）とは分けて数える。 */
+export function ownedGapSummary(work: Work): OwnedGapSummary {
+  if (!work.owned?.known || work.owned.ranges.length === 0) return { count: 0, ranges: [], text: "" };
+  const max = ownedMax(work);
+  const owned = work.owned.ranges
+    .map((range) => ({ from: Math.max(1, range.from), to: Math.min(max, range.to) }))
+    .filter((range) => range.from <= range.to)
+    .sort((a, b) => a.from - b.from || a.to - b.to);
+  const ranges: VolumeRange[] = [];
+  let next = 1;
+  for (const range of owned) {
+    if (range.to < next) continue;
+    if (range.from > next) ranges.push({ from: next, to: range.from - 1 });
+    next = Math.max(next, range.to + 1);
+    if (next > max) break;
+  }
+  if (next <= max) ranges.push({ from: next, to: max });
+  const count = ranges.reduce((sum, range) => sum + range.to - range.from + 1, 0);
+  return {
+    count,
+    ranges,
+    text: ranges.map((range) => range.from === range.to ? `${range.from}` : `${range.from}-${range.to}`).join(", "),
+  };
+}
+
 /**
  * 新刊を買うシリーズで、まだ買っていない巻の数（既刊 − 持っている最大の巻）。
  * 「新刊を買う」の印が無い・既刊が分からないときは 0
@@ -175,6 +206,8 @@ export type ContinueGroup = "following" | "reading";
  * 進行中でないもの・続きを数えないものは null
  */
 export function continueGroup(work: Work): ContinueGroup | null {
+  // 読了・積読・中断でも、買う新刊が残っているマンガは「追っている」に出す。状態自体は変えない。
+  if (work.medium === "manga" && work.buying && unpurchasedCount(work) > 0) return "following";
   if (work.status !== "active") return null;
   // プレイ中のゲーム（ポケポケなど）は「追っている」に並べる
   if (work.medium === "game") return "following";

@@ -201,9 +201,11 @@ export function markNewVolume(work: Work, now: string = nowIso()): Work {
 export type ContinueGroup = "following" | "reading";
 
 /**
- * 続きタブの置き場（2026-11-01 本人と認識合わせ）。
- * 追っている＝今期のアニメ・ドラマ・週刊誌と、新刊を買うマンガ。読みかけ＝新刊を買う印のない進行中のマンガ（再読中も）。
- * 進行中でないもの・続きを数えないものは null
+ * 続きタブの置き場（2026-11-01 本人と認識合わせ。2026-11-15 に線引きを直した）。
+ * 追っている（following）＝毎週積み上がるもの：毎週の放送予定を入れたアニメ・ドラマ、週刊誌、新刊を買うマンガ、プレイ中のゲーム。
+ * 途中（reading）＝自分の進み具合で進めるもの：放送予定を入れていない進行中のアニメ・ドラマ（配信で後から見る作品など）、
+ * 新刊を買う印のない進行中のマンガ（再読中も）、読書中の小説。
+ * 進行中でないもの・続きも途中も持たないものは null
  */
 export function continueGroup(work: Work): ContinueGroup | null {
   // 読了・積読・中断でも、買う新刊が残っているマンガは「追っている」に出す。状態自体は変えない。
@@ -211,9 +213,13 @@ export function continueGroup(work: Work): ContinueGroup | null {
   if (work.status !== "active") return null;
   // プレイ中のゲーム（ポケポケなど）は「追っている」に並べる
   if (work.medium === "game") return "following";
+  // 小説は巻を数えないが、読みかけを置ける
+  if (work.medium === "novel") return "reading";
   const kind = progressKindOf(work);
   if (kind === "none") return null;
   if (work.medium === "manga") return work.buying ? "following" : "reading";
+  // アニメ・ドラマは、毎週の放送予定を入れた作品だけ「追っている」。入れていなければ「途中」
+  if (kind === "episode") return work.schedule ? "following" : "reading";
   return "following";
 }
 

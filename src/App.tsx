@@ -33,7 +33,7 @@ type Overlay =
   | { kind: "franchise"; id: string }
   | { kind: "person"; id: string };
 
-type SheetState = { workId: string; log: Log | null; newKind: Log["kind"] } | null;
+type SheetState = { workId: string; log: Log | null; newKind: Log["kind"]; finish?: boolean } | null;
 
 export default function App() {
   const [data, setData] = useState<DataSet>(EMPTY_DATA);
@@ -117,7 +117,7 @@ export default function App() {
     });
   };
 
-  const saveLog = (work: Work, log: Log, isNew: boolean) => {
+  const saveLog = (work: Work, log: Log, isNew: boolean, finish = false) => {
     const kind = progressKindOf(work);
     if (isNew && log.kind === "progress" && kind === "issue") {
       // 週刊誌の長押し：選んだ日で次の号を読んだことにする
@@ -128,6 +128,10 @@ export default function App() {
       const now = nowIso();
       const updated = withAutoStatus({ ...work, progress: log.position, status: work.status === "wish" || work.status === "paused" ? "active" : work.status, touchedAt: now, updatedAt: now }, now);
       commit({ works: [updated], logs: [log] });
+    } else if (finish && isNew && work.status !== "done") {
+      // 読書中の小説の「読み終えた」：記録を保存したら読了にする
+      const now = nowIso();
+      commit({ works: [{ ...work, status: "done", completedAt: work.completedAt ?? now, touchedAt: now, updatedAt: now }], logs: [log] });
     } else {
       const now = nowIso();
       commit({ works: [{ ...work, touchedAt: now }], logs: [log] });
@@ -169,6 +173,7 @@ export default function App() {
     onOpen: (w: Work) => push({ kind: "detail", workId: w.id }),
     onStep: (w: Work) => step(w),
     onStepWithDate: (w: Work) => setSheet({ workId: w.id, log: null, newKind: "progress" }),
+    onFinish: (w: Work) => setSheet({ workId: w.id, log: null, newKind: "view", finish: true }),
   };
   const openRecord = (item: import("./TabViews").RecordItem) => {
     if (item.log) push({ kind: "log", workId: item.work.id, logId: item.log.id });
@@ -373,7 +378,7 @@ export default function App() {
             onBack={pop}
             onEdit={() => push({ kind: "editor", workId: w.id, medium: w.medium })}
             onStep={(x) => step(x)}
-            onAddLog={(kind) => setSheet({ workId: w.id, log: null, newKind: kind })}
+            onAddLog={(kind, finish) => setSheet({ workId: w.id, log: null, newKind: kind, finish })}
             onEditLog={(log) => push({ kind: "log", workId: w.id, logId: log.id })}
             onSetStatus={(s) => setStatus(w, s)}
             onDelete={() => setConfirmDelete(w)}
@@ -394,7 +399,7 @@ export default function App() {
           today={today}
           newKind={sheet.newKind}
           onClose={() => setSheet(null)}
-          onSave={(log) => saveLog(sheetWork, log, sheet.log === null)}
+          onSave={(log) => saveLog(sheetWork, log, sheet.log === null, sheet.finish === true)}
           onDelete={(log) => {
             commit({ logs: [{ ...log, deletedAt: nowIso() }] });
             setSheet(null);

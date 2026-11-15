@@ -13,6 +13,7 @@ import { continueGroup, hasNext, ownedGapSummary, unconsumedCount, unpurchasedCo
 
 interface CardHandlers {
   today: string;
+  onFinish: (work: Work) => void;
   onOpen: (work: Work) => void;
   onStep: (work: Work) => void;
   onStepWithDate: (work: Work) => void;
@@ -184,15 +185,15 @@ function MediumChips({ media, value, onChange }: { media: Medium[]; value: Mediu
 type ContinueTab = "following" | "reading" | "wish" | "paused";
 const CONTINUE_TABS: { id: ContinueTab; label: string }[] = [
   { id: "following", label: "追っている" },
-  { id: "reading", label: "読みかけ" },
-  { id: "wish", label: "予定" },
+  { id: "reading", label: "途中" },
+  { id: "wish", label: "これから" },
   { id: "paused", label: "中断" },
 ];
 const EMPTY_TEXT: Record<ContinueTab, string> = {
-  following: "追っている作品はありません。今期のアニメ・週刊誌や、「新刊を買う」の印を付けたマンガがここに並びます。",
-  reading: "読みかけのマンガはありません。",
+  following: "追っている作品はありません。毎週の放送予定を入れたアニメ・ドラマ、週刊誌、「新刊を買う」の印を付けたマンガがここに並びます。",
+  reading: "途中の作品はありません。読みかけのマンガ、読書中の小説、放送予定を入れていないアニメ・ドラマがここに並びます。",
   wish: "見たい・読みたい作品はありません。",
-  paused: "休止中の作品はありません。",
+  paused: "中断している作品はありません。",
 };
 
 function kanaKey(w: Work): string {

@@ -375,6 +375,7 @@ textarea.text-input { font: inherit; resize: vertical; line-height: 1.6; padding
 .unconsumed { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 40px; }
 .unconsumed-num { font-size: var(--kb-fs-l); font-weight: 700; color: var(--kb-accent-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .unconsumed-label { font-size: 10px; color: var(--kb-text-3); }
+.unconsumed-unit { margin-left: 1px; font-size: 10px; font-weight: 600; }
 .step-btn {
   flex: none; display: inline-flex; align-items: center; gap: 2px; min-height: var(--kb-tap); min-width: 64px; justify-content: center; padding: 0 var(--kb-space-3);
   border: 0; border-radius: var(--kb-radius-pill); background: var(--kb-accent-soft); color: var(--kb-accent-strong); font-weight: 700; font-size: var(--kb-fs-s);

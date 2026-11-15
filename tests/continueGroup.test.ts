@@ -5,8 +5,10 @@ import { emptyWork } from "../src/workFactory.js";
 
 const NOW = "2026-11-01T03:00:00.000Z";
 
-test("追っている＝アニメ・週刊誌・新刊を買うマンガ、読みかけ＝印のない進行中のマンガ", () => {
-  assert.equal(continueGroup({ ...emptyWork("anime", NOW), title: "a" }), "following");
+const WEEKLY = { firstDate: "2026-10-05", firstNumber: 1, skipDates: [] };
+
+test("追っている＝放送予定のあるアニメ・週刊誌・新刊を買うマンガ、途中＝印のない進行中のマンガ", () => {
+  assert.equal(continueGroup({ ...emptyWork("anime", NOW), title: "a", schedule: WEEKLY }), "following");
   assert.equal(continueGroup({ ...emptyWork("magazine", NOW), title: "a" }), "following");
   assert.equal(continueGroup({ ...emptyWork("manga", NOW), title: "a", buying: true }), "following");
   assert.equal(continueGroup({ ...emptyWork("manga", NOW), title: "a" }), "reading");
@@ -39,4 +41,19 @@ test("もう一度読む：位置を最初に戻して進行中へ（記録は�
   assert.equal(again.progress, null);
   assert.equal(again.completedAt, null);
   assert.equal(continueGroup(again), "reading");
+});
+
+test("アニメ・ドラマは、毎週の放送予定を入れた作品だけ追っている。入れていなければ途中", () => {
+  assert.equal(continueGroup({ ...emptyWork("anime", NOW), title: "a" }), "reading");
+  assert.equal(continueGroup({ ...emptyWork("anime", NOW), title: "a", latestKnown: 12, progress: 3 }), "reading");
+  assert.equal(continueGroup({ ...emptyWork("drama", NOW), title: "d", status: "active" }), "reading");
+  assert.equal(continueGroup({ ...emptyWork("drama", NOW), title: "d", status: "active", schedule: WEEKLY }), "following");
+  assert.equal(continueGroup({ ...emptyWork("anime", NOW), title: "a", schedule: WEEKLY, status: "paused" }), null);
+});
+
+test("小説は読書中のときだけ途中に並ぶ。読了・積読・中断は並ばない", () => {
+  assert.equal(continueGroup({ ...emptyWork("novel", NOW), title: "n", status: "active" }), "reading");
+  for (const status of ["done", "wish", "paused"] as const) assert.equal(continueGroup({ ...emptyWork("novel", NOW), title: "n", status }), null);
+  // 読書中の小説は数える続きを持たないので、「次にやること」には入らない
+  assert.equal(hasNext({ ...emptyWork("novel", NOW), title: "n", status: "active" }, "2026-11-01"), false);
 });

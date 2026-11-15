@@ -1,7 +1,7 @@
 import type { EventKind, Medium, ProgressKind, Work, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.13.0";
+export const APP_VERSION = "0.14.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 3;
@@ -116,9 +116,9 @@ export function statusWord(medium: Medium, status: WorkStatus): string {
   return { active: "視聴中", wish: "視聴予定", done: "視聴済み" }[status];
 }
 
-/** 続きを数えないが「途中・中断」を持つ種類（ゲーム） */
+/** 続きを数えないが「途中・中断」を持つ種類（ゲーム・小説） */
 export function hasOngoingStatus(medium: Medium): boolean {
-  return medium === "game";
+  return medium === "game" || medium === "novel";
 }
 
 /** 人物の欄の名前（映画・ドラマ＝出演、マンガ・小説＝作者） */

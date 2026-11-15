@@ -36,9 +36,11 @@ interface Props {
   onStep: (work: Work) => void;
   onStepWithDate: (work: Work) => void;
   onBought?: (work: Work) => void;
+  /** 読書中の小説の「読み終えた」：記録の入力を開く */
+  onFinish?: (work: Work) => void;
 }
 
-export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought }: Props) {
+export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought, onFinish }: Props) {
   const unpurchased = unpurchasedCount(work);
   const gaps = ownedGapSummary(work);
   const kind = progressKindOf(work);
@@ -69,11 +71,16 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
             未購入 {unpurchased}巻・買った
           </button>
         )}
+        {work.medium === "novel" && work.status === "active" && onFinish && (
+          <button type="button" className="buy-btn" aria-label={`${work.title}を読み終えた（記録を書く）`} onClick={() => onFinish(work)}>
+            読み終えた
+          </button>
+        )}
       </div>
       {work.status === "active" && unconsumed !== null && unconsumed > 0 && (
-        <span className="unconsumed" aria-label={`未消化 ${unconsumed}`}>
-          <span className="unconsumed-num">{unconsumed}</span>
-          <span className="unconsumed-label">未消化</span>
+        <span className="unconsumed" aria-label={`あと${unconsumed}${UNIT_LABEL[kind]}`}>
+          <span className="unconsumed-label">あと</span>
+          <span className="unconsumed-num">{unconsumed}<span className="unconsumed-unit">{UNIT_LABEL[kind]}</span></span>
         </span>
       )}
       {kind !== "none" && work.status === "active" && (

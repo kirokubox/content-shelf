@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CoverImg } from "./CoverImg";
-import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
+import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { availableCount, latestLabel, ownedGapSummary, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
@@ -22,7 +22,8 @@ interface Props {
   onBack: () => void;
   onEdit: () => void;
   onStep: (work: Work) => void;
-  onAddLog: (kind: Log["kind"]) => void;
+  /** finish=true は「読み終えた」：保存したら作品を読了にする（読書中の小説） */
+  onAddLog: (kind: Log["kind"], finish?: boolean) => void;
   onEditLog: (log: Log) => void;
   onSetStatus: (status: WorkStatus) => void;
   onDelete: () => void;
@@ -57,6 +58,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   }, [coverOpen]);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
+  // 読書中・中断の小説：記録を書くと読了になる入口を主ボタンにする
+  const readingNovel = work.medium === "novel" && (work.status === "active" || work.status === "paused");
   const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   const statusItems: { label: string; onClick: () => void; danger?: boolean }[] = [];
   if (kind !== "none") {
@@ -64,9 +67,14 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     if (work.status !== "active") statusItems.push({ label: work.status === "done" ? "続きに戻す（今の位置のまま）" : "進行中にする", onClick: () => onSetStatus("active") });
     if (work.status === "active") statusItems.push({ label: "休止にする", onClick: () => onSetStatus("paused") });
     if (work.status !== "done") statusItems.push({ label: work.medium === "manga" ? "読み終えた（記録へ）" : "見終えた（記録へ）", onClick: () => onSetStatus("done") });
-  } else if (work.medium === "game") {
-    // ゲームは続きを数えないが、プレイ中・中断を持つ
-    for (const s of ["active", "paused", "done", "wish"] as const) if (work.status !== s) statusItems.push({ label: `${workStatusWord(work, s)}にする`, onClick: () => onSetStatus(s) });
+  } else if (hasOngoingStatus(work.medium)) {
+    // ゲーム・小説は続きを数えないが、途中（プレイ中・読書中）と中断を持つ
+    for (const s of ["active", "paused", "done", "wish"] as const) {
+      if (work.status === s) continue;
+      // 小説を読み終えたら、状態だけ変えずに記録（読んだ日・星・感想）の入力を開く
+      if (s === "done" && work.medium === "novel") statusItems.push({ label: "読み終えた（記録を書く）", onClick: () => onAddLog("view", true) });
+      else statusItems.push({ label: `${workStatusWord(work, s)}にする`, onClick: () => onSetStatus(s) });
+    }
   } else {
     if (work.status === "wish") statusItems.push({ label: `${doneWord(work.medium)}にする`, onClick: () => onSetStatus("done") });
     else statusItems.push({ label: `${wishWord(work.medium)}に戻す`, onClick: () => onSetStatus("wish") });
@@ -161,9 +169,15 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               {unpurchased > 0 && <button type="button" className="secondary-btn" onClick={onBought}>1巻買った</button>}
             </>
           )}
-          <button type="button" className={kind === "none" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
-            {kind === "none" ? `${doneWord(work.medium)}記録を追加` : "感想を残す"}
-          </button>
+          {readingNovel ? (
+            <button type="button" className="primary-btn" onClick={() => onAddLog("view", true)}>
+              読み終えた（記録を書く）
+            </button>
+          ) : (
+            <button type="button" className={kind === "none" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
+              {kind === "none" ? `${doneWord(work.medium)}記録を追加` : "感想を残す"}
+            </button>
+          )}
         </div>
       </section>
 

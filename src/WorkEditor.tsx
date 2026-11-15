@@ -359,7 +359,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
           />
           {kind === "episode" && (
             <label className="toggle-row">
-              <span>放送日から未消化を数える</span>
+              <span>毎週の放送日から、あと何話かを数える（入れると「追っている」に並ぶ）</span>
               <input type="checkbox" checked={scheduleOn} onChange={(e) => toggleSchedule(e.target.checked)} />
             </label>
           )}

@@ -75,3 +75,74 @@ export function completedWorks(data: DataSet, period: Period, today: string): nu
   const { from, to } = periodRange(period, today);
   return data.works.filter((w) => w.deletedAt === null && w.status === "done" && w.completedAt !== null && w.completedAt.slice(0, 10) >= from && w.completedAt.slice(0, 10) <= to).length;
 }
+
+// ---------- 月のまとめ（v0.15.0） ----------
+
+export interface MonthWork {
+  workId: string;
+  medium: Medium;
+  /** その月の記録の数 */
+  count: number;
+  /** その月の記録のうち、いちばん高い星（無ければ null） */
+  rating: number | null;
+  /** その月で最初に記録した日 */
+  firstDate: string;
+}
+
+export interface MonthSummary {
+  /** YYYY-MM */
+  month: string;
+  /** その月に記録がある作品（最初に記録した日の順） */
+  works: MonthWork[];
+  byMedium: MediumSummary[];
+  totalLogs: number;
+  /** その月に最後まで見た・読んだ作品の数 */
+  completed: number;
+  /** 星が4以上の作品（星の高い順、同じなら記録した日の順。最大6） */
+  topRated: MonthWork[];
+}
+
+export const TOP_RATED_MIN = 4;
+export const TOP_RATED_LIMIT = 6;
+
+/** 月のまとめ。年だけの記録は月に割り当てない（集計タブの「今月」と同じ） */
+export function monthSummary(data: DataSet, month: string): MonthSummary {
+  const { logs, mediumOf } = liveLogs(data);
+  const map = new Map<string, MonthWork>();
+  let totalLogs = 0;
+  for (const l of logs) {
+    if (l.date.slice(0, 7) !== month || l.datePrecision === "year") continue;
+    totalLogs += 1;
+    const cur = map.get(l.workId);
+    if (!cur) {
+      map.set(l.workId, { workId: l.workId, medium: mediumOf.get(l.workId)!, count: 1, rating: l.rating, firstDate: l.date });
+      continue;
+    }
+    cur.count += 1;
+    if (l.rating !== null && (cur.rating === null || l.rating > cur.rating)) cur.rating = l.rating;
+    if (l.date < cur.firstDate) cur.firstDate = l.date;
+  }
+  const works = [...map.values()].sort((a, b) => a.firstDate.localeCompare(b.firstDate) || a.workId.localeCompare(b.workId));
+  const byMedium = MEDIA.map((m) => {
+    const list = works.filter((w) => w.medium === m);
+    return { medium: m, works: list.length, count: list.reduce((sum, w) => sum + w.count, 0) };
+  }).filter((row) => row.works > 0);
+  const completed = data.works.filter((w) => w.deletedAt === null && w.status === "done" && w.completedAt !== null && w.completedAt.slice(0, 7) === month).length;
+  const topRated = works
+    .filter((w) => w.rating !== null && w.rating >= TOP_RATED_MIN)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || a.firstDate.localeCompare(b.firstDate))
+    .slice(0, TOP_RATED_LIMIT);
+  return { month, works, byMedium, totalLogs, completed, topRated };
+}
+
+/** 月を n か月ずらす（YYYY-MM） */
+export function shiftMonth(month: string, n: number): string {
+  const index = Number(month.slice(0, 4)) * 12 + (Number(month.slice(5, 7)) - 1) + n;
+  const year = Math.floor(index / 12);
+  return `${String(year).padStart(4, "0")}-${String(index - year * 12 + 1).padStart(2, "0")}`;
+}
+
+/** 月の表示（例：2026年11月） */
+export function monthLabel(month: string): string {
+  return `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`;
+}

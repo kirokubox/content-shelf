@@ -6,7 +6,7 @@ import { forgetPhotoUrls } from "./useCover";
 import { withThumbs } from "./photos";
 import type { MergePlan, UpdatePlan } from "./backup";
 import { ConfirmSheet } from "./BottomSheet";
-import { APP_VERSION } from "./constants";
+import { APP_VERSION, MEDIUM_LABEL } from "./constants";
 import { nowIso } from "./dateUtils";
 import { exportRange, logInRange } from "./exportRange";
 import type { ExportUnit } from "./exportRange";
@@ -15,7 +15,9 @@ import { Icon } from "./Icon";
 import { parseMangaShelfBackup } from "./mangaShelfImport";
 import { buildMarkdown } from "./markdownExport";
 import { Screen } from "./Screen";
-import type { DataSet, StoredPhoto } from "./types";
+import { visibleMedia } from "./mediaPrefs";
+import { MEDIA } from "./types";
+import type { DataSet, Medium, StoredPhoto } from "./types";
 
 type Pending =
   | { kind: "restore"; data: DataSet; works: number; logs: number; photos: StoredPhoto[] }
@@ -38,6 +40,8 @@ interface Props {
   data: DataSet;
   today: string;
   persisted: boolean | null;
+  enabledMedia: Medium[] | null;
+  onToggleMedium: (medium: Medium) => void;
   onBack: () => void;
   onReplace: (data: DataSet) => Promise<void>;
   onAdd: (changes: DataSet) => Promise<void>;
@@ -45,7 +49,7 @@ interface Props {
   onRefreshExternal: () => Promise<void>;
 }
 
-export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd, showToast, onRefreshExternal }: Props) {
+export function SettingsView({ data, today, persisted, enabledMedia, onToggleMedium, onBack, onReplace, onAdd, showToast, onRefreshExternal }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"restore" | "merge" | "manga" | "update">("merge");
   const [pending, setPending] = useState<Pending | null>(null);
@@ -244,6 +248,20 @@ export function SettingsView({ data, today, persisted, onBack, onReplace, onAdd,
         <p className="muted small">同じ作品は二度入りません。マンガ棚には読んだ日が無いので、記録は作らず「何巻まで読んだか」だけを移します。</p>
       </section>
       {error && <p className="notice danger">{error}</p>}
+      <section className="card">
+        <h2>使う種類</h2>
+        <div className="chips">
+          {MEDIA.map((m) => {
+            const on = visibleMedia(enabledMedia).includes(m);
+            return (
+              <button key={m} type="button" className={`chip mini${on ? " on" : ""}`} aria-pressed={on} onClick={() => onToggleMedium(m)}>
+                {MEDIUM_LABEL[m]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="muted small">外した種類は、登録するときと種類で絞り込むときの候補に出なくなります。すでに登録した作品はそのまま残り、「すべて」では表示されます。最後の1つは外せません。この設定はこの端末だけのもので、バックアップには入りません。</p>
+      </section>
       <section className="card">
         <h2>このアプリについて</h2>
         <dl className="rows">

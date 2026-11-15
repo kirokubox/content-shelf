@@ -9,6 +9,8 @@ import type { Period } from "./summaryLogic";
 import type { DataSet, Log, Medium, Work } from "./types";
 import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
+import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
+import { MonthSummaryView } from "./MonthSummaryView";
 import { continueGroup, hasNext, ownedGapSummary, unconsumedCount, unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
@@ -83,7 +85,7 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordIt
   );
 }
 
-export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onOpenRecord }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
+export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onOpenRecord, enabledMedia, onToggleMedium }: { enabledMedia: Medium[] | null; onToggleMedium: (medium: Medium) => void; data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
   const covers = useMemo(
     () => data.works.filter((w) => w.deletedAt === null).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 12),
     [data.works],
@@ -102,9 +104,31 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onO
   const totalDone = completedWorks(data, "week", handlers.today);
   if (data.works.filter((w) => w.deletedAt === null).length === 0) {
     return (
-      <section className="card">
-        <h2>ようこそ</h2>
-        <p className="muted">アニメ・週刊誌・マンガの「どこまで見たか」と、映画・小説の「いつ見たか・感想」をためていく棚です。右下の＋から作品を登録してください。</p>
+      <section className="card welcome-card" aria-label="はじめに">
+        <h2>はじめに</h2>
+        <p className="muted">作品の「どこまで見たか」と「いつ見たか・感想」をためていく棚です。</p>
+        <ol className="welcome-steps">
+          <li>
+            <p className="welcome-step"><span className="welcome-no" aria-hidden="true">①</span>使う種類を選ぶ</p>
+            <div className="chips welcome-media">
+              {MEDIA.map((m) => {
+                const on = visibleMedia(enabledMedia).includes(m);
+                return (
+                  <button key={m} type="button" className={`chip mini${on ? " on" : ""}`} aria-pressed={on} onClick={() => onToggleMedium(m)}>
+                    {MEDIUM_LABEL[m]}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="muted small">外した種類は、登録するときと種類で絞り込むときの候補に出なくなります。あとから設定の「使う種類」で変えられます。</p>
+          </li>
+          <li>
+            <p className="welcome-step"><span className="welcome-no" aria-hidden="true">②</span>右下の＋から、作品を登録する</p>
+          </li>
+          <li>
+            <p className="welcome-step"><span className="welcome-no" aria-hidden="true">③</span>「続き」で次の話や巻を記録し、「記録」で感想を読み返す</p>
+          </li>
+        </ol>
         <p className="muted small">データはこの端末の中だけに保存されます。設定からバックアップを保存できます。</p>
         <Empty text="" onAdd={onAdd} />
       </section>
@@ -200,7 +224,7 @@ function kanaKey(w: Work): string {
   return (w.kana || w.title).normalize("NFKC");
 }
 
-export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handlers: CardHandlers; onAdd: () => void }) {
+export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; enabledMedia: Medium[] | null }) {
   const [tab, setTab] = useState<ContinueTab>("following");
   const [medium, setMedium] = useState<Medium | null>(null);
   const [caughtUpOpen, setCaughtUpOpen] = useState(false);
@@ -208,8 +232,10 @@ export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handler
   const inTab = live.filter((w) =>
     tab === "following" || tab === "reading" ? continueGroup(w) === tab : w.status === (tab === "wish" ? "wish" : "paused"),
   );
-  const media = MEDIA.filter((m) => inTab.some((w) => w.medium === m));
-  const shown = inTab.filter((w) => medium === null || w.medium === medium);
+  const availableMedia = MEDIA.filter((m) => inTab.some((w) => w.medium === m));
+  const media = visibleFilterMedia(availableMedia, enabledMedia);
+  const selectedMedium = medium !== null && media.includes(medium) ? medium : null;
+  const shown = inTab.filter((w) => selectedMedium === null || w.medium === selectedMedium);
   const byRecent = (a: Work, b: Work) => b.touchedAt.localeCompare(a.touchedAt);
   let main: Work[];
   let caughtUp: Work[] = [];
@@ -232,7 +258,7 @@ export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handler
           </button>
         ))}
       </div>
-      <MediumChips media={media} value={medium} onChange={setMedium} />
+      <MediumChips media={media} value={selectedMedium} onChange={setMedium} />
       {main.length === 0 && caughtUp.length === 0 ? (
         <Empty text={EMPTY_TEXT[tab]} onAdd={tab === "paused" ? undefined : onAdd} />
       ) : (
@@ -270,18 +296,20 @@ export function ContinueView({ data, handlers, onAdd }: { data: DataSet; handler
   );
 }
 
-export function RecordsView({ data, onOpen }: { data: DataSet; onOpen: (item: RecordItem) => void }) {
+export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onOpen: (item: RecordItem) => void; enabledMedia: Medium[] | null }) {
   const [mode, setMode] = useState<"list" | "grid">("list");
   const [medium, setMedium] = useState<Medium | null>(null);
   const [year, setYear] = useState<string | null>(null);
   const all = useMemo(() => buildRecordItems(data), [data]);
-  const media = MEDIA.filter((m) => all.some((i) => i.work.medium === m));
+  const availableMedia = MEDIA.filter((m) => all.some((i) => i.work.medium === m));
+  const media = visibleFilterMedia(availableMedia, enabledMedia);
+  const selectedMedium = medium !== null && media.includes(medium) ? medium : null;
   const years = Array.from(new Set(all.map((i) => i.date.slice(0, 4)))).sort().reverse();
-  const items = all.filter((i) => (medium === null || i.work.medium === medium) && (year === null || i.date.startsWith(year)));
+  const items = all.filter((i) => (selectedMedium === null || i.work.medium === selectedMedium) && (year === null || i.date.startsWith(year)));
   if (all.length === 0) return <Empty text="見た・読んだ記録はまだありません。映画・小説を登録するか、続きの作品を最後まで見ると、ここにたまります。" />;
   return (
     <>
-      <MediumChips media={media} value={medium} onChange={setMedium} />
+      <MediumChips media={media} value={selectedMedium} onChange={setMedium} />
       <div className="records-tools">
         <p className="muted small count-line">{items.length}件</p>
         <div className="records-right">
@@ -330,8 +358,10 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "all", label: "累計" },
 ];
 
-export function SummaryView({ data, today }: { data: DataSet; today: string }) {
+export function SummaryView({ data, today, onOpen }: { data: DataSet; today: string; onOpen: (work: Work) => void }) {
   const [period, setPeriod] = useState<Period>("month");
+  // 月のまとめを開いている月（YYYY-MM）。閉じているときは null
+  const [openMonth, setOpenMonth] = useState<string | null>(null);
   const rows = summarize(data, period, today);
   const done = completedWorks(data, period, today);
   const months = monthlyCounts(data, today.slice(0, 4));
@@ -367,19 +397,32 @@ export function SummaryView({ data, today }: { data: DataSet; today: string }) {
           </dl>
         )}
         <p className="muted small">作品数は、その期間に記録がある作品の数です。回数は話・巻・号・鑑賞の数を数えています。</p>
+        {period === "month" && (
+          <button type="button" className="secondary-btn month-open" onClick={() => setOpenMonth(today.slice(0, 7))}>
+            今月のまとめを見る
+          </button>
+        )}
       </section>
       <section className="card">
         <h2>{today.slice(0, 4)}年の月ごとの記録</h2>
         <div className="bars" role="img" aria-label="月ごとの記録数">
-          {months.map((n, i) => (
-            <div className="bar-col" key={i}>
-              <span className="bar-num">{n > 0 ? n : ""}</span>
-              <span className="bar" style={{ height: `${(n / max) * 100}%` }} />
-              <span className="bar-label">{i + 1}</span>
-            </div>
-          ))}
+          {months.map((n, i) => {
+            const month = `${today.slice(0, 4)}-${String(i + 1).padStart(2, "0")}`;
+            const future = month > today.slice(0, 7);
+            return (
+              <button type="button" className="bar-col bar-btn" key={i} aria-label={future ? `${i + 1}月（未来）` : `${i + 1}月のまとめを開く（記録 ${n}件）`} disabled={future} onClick={() => setOpenMonth(month)}>
+                <span className="bar-num">{n > 0 ? n : ""}</span>
+                <span className="bar" style={{ height: `${(n / max) * 100}%` }} />
+                <span className="bar-label">{i + 1}</span>
+              </button>
+            );
+          })}
         </div>
+        <p className="muted small">月を押すと、その月のまとめが開きます。</p>
       </section>
+      {openMonth && (
+        <MonthSummaryView data={data} month={openMonth} today={today} onChangeMonth={setOpenMonth} onBack={() => setOpenMonth(null)} onOpen={onOpen} />
+      )}
       <p className="muted small center">{formatDate(today, today)}時点</p>
     </>
   );

@@ -8,6 +8,7 @@ import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogDetail } from "./LogDetail";
 import { LogSheet } from "./LogSheet";
+import { ENABLED_MEDIA_KEY, parseEnabledMedia, toggleMedium, visibleMedia } from "./mediaPrefs";
 import { markBoughtNext, markNewVolume, progressKindOf, startAgain, stepForward, withAutoStatus } from "./progressLogic";
 import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
@@ -18,7 +19,6 @@ import type { TabId } from "./TabBar";
 import { ContinueView, HomeView, RecordsView, SummaryView } from "./TabViews";
 import { useToast } from "./Toast";
 import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
-import { MEDIA } from "./types";
 import { WorkDetail } from "./WorkDetail";
 import { WorkEditor } from "./WorkEditor";
 import { newLog } from "./workFactory";
@@ -42,6 +42,23 @@ export default function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [stack, setStack] = useState<Overlay[]>([]);
   const [sheet, setSheet] = useState<SheetState>(null);
+  // 使う種類（登録画面に出す種類）。この端末の表示の設定で、バックアップには入れない。null＝全部
+  const [enabledMedia, setEnabledMedia] = useState<Medium[] | null>(() => {
+    try {
+      return parseEnabledMedia(JSON.parse(localStorage.getItem(ENABLED_MEDIA_KEY) ?? "null"));
+    } catch {
+      return null;
+    }
+  });
+  const toggleEnabledMedium = (medium: Medium) => {
+    const next = toggleMedium(enabledMedia, medium);
+    setEnabledMedia(next);
+    try {
+      localStorage.setItem(ENABLED_MEDIA_KEY, JSON.stringify(next));
+    } catch {
+      // 表示の設定なので、保存できなくても登録は続けられる
+    }
+  };
   const [confirmDelete, setConfirmDelete] = useState<Work | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [toast, showToast] = useToast();
@@ -209,13 +226,13 @@ export default function App() {
       </header>
       <main className="content" key={tab}>
         {!loaded ? null : tab === "home" ? (
-          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} />
+          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} enabledMedia={enabledMedia} onToggleMedium={toggleEnabledMedium} />
         ) : tab === "continue" ? (
-          <ContinueView data={data} handlers={handlers} onAdd={openAdd} />
+          <ContinueView data={data} handlers={handlers} onAdd={openAdd} enabledMedia={enabledMedia} />
         ) : tab === "records" ? (
-          <RecordsView data={data} onOpen={openRecord} />
+          <RecordsView data={data} onOpen={openRecord} enabledMedia={enabledMedia} />
         ) : (
-          <SummaryView data={data} today={today} />
+          <SummaryView data={data} today={today} onOpen={handlers.onOpen} />
         )}
       </main>
       <button type="button" className="fab" aria-label="作品を登録" onClick={openAdd}>
@@ -292,6 +309,8 @@ export default function App() {
               data={data}
               today={today}
               persisted={persisted}
+              enabledMedia={enabledMedia}
+              onToggleMedium={toggleEnabledMedium}
               onBack={pop}
               onReplace={async (d) => {
                 await replaceAll(d);
@@ -316,7 +335,7 @@ export default function App() {
                   <h2>何を登録しますか</h2>
                 </div>
                 <div className="medium-grid">
-                  {MEDIA.map((m) => (
+                  {visibleMedia(enabledMedia).map((m) => (
                     <button key={m} type="button" className="medium-btn" onClick={() => setStack((s) => [...s.slice(0, -1), { kind: "editor", workId: null, medium: m }])}>
                       {MEDIUM_LABEL[m]}
                     </button>
@@ -335,6 +354,7 @@ export default function App() {
               today={today}
               data={data}
               pick={o.pick ?? null}
+              media={visibleMedia(enabledMedia)}
               onCancel={pop}
               onSave={(work, firstLog, created) => {
                 commit({ works: [work], logs: firstLog ? [firstLog] : [], franchises: created.franchises, people: created.people });

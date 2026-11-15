@@ -19,6 +19,8 @@
     "src/backup.ts",
     "src/mangaShelfImport.ts",
     "src/summaryLogic.ts",
+    "src/mediaPrefs.ts",
+    "tests/monthSummary.test.ts",
     "src/searchLogic.ts",
     "src/workFactory.ts",
     "src/dataOps.ts",

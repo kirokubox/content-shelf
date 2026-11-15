@@ -611,3 +611,28 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .export-period-label { display: flex; flex-direction: column; align-items: center; text-align: center; font-weight: 700; }
 .export-period-label .muted { font-weight: 400; }
 .export-period .icon-btn:disabled { opacity: 0.3; }
+
+/* 月のまとめ（v0.15.0） */
+.month-open { margin-top: var(--kb-space-3); width: 100%; }
+.bar-btn { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.bar-btn:disabled { cursor: default; opacity: 0.38; }
+.month-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-2); }
+.month-nav-label { margin: 0; font-size: var(--kb-fs-l); }
+.month-nav .icon-btn:disabled { opacity: 0.35; }
+.month-totals { padding-top: 0; border-top: 0; text-align: center; }
+.month-totals dd { margin: 0; font-size: var(--kb-fs-l); font-weight: 700; font-variant-numeric: tabular-nums; }
+.month-grid { list-style: none; margin: 0 0 var(--kb-space-3); padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--kb-space-2); }
+.month-cover { display: block; width: 100%; padding: 0; border: 0; background: none; border-radius: var(--kb-radius-s); overflow: hidden; cursor: pointer; }
+.month-cover-image { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+.month-cover .cover-fallback-title { font-size: var(--kb-fs-xs); -webkit-line-clamp: 5; }
+.month-save { width: 100%; margin-bottom: var(--kb-space-2); }
+.month-top { list-style: none; margin: 0; padding: 0; }
+.month-top-row { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-3); width: 100%; min-height: 44px; padding: var(--kb-space-2) 0; border: 0; border-bottom: 1px solid var(--kb-line); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.month-top li:last-child .month-top-row { border-bottom: 0; }
+.month-top-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* はじめに（作品が1件もないとき） */
+.welcome-steps { list-style: none; margin: var(--kb-space-3) 0 0; padding: 0; display: grid; gap: var(--kb-space-3); }
+.welcome-step { margin: 0 0 var(--kb-space-2); font-weight: 600; }
+.welcome-no { display: inline-block; width: 1.6em; color: var(--kb-accent-strong); font-weight: 700; }
+.welcome-media { margin-bottom: var(--kb-space-2); }

@@ -83,11 +83,13 @@ interface Props {
   data: DataSet;
   /** 検索画面でAniListの作品を選んで来たとき */
   pick?: AnilistMedia | null;
+  /** 「種類を変える」に出す種類（使う種類）。今の種類は、外してあっても出す */
+  media: Medium[];
   onCancel: () => void;
   onSave: (work: Work, firstLog: Log | null, created: { franchises: Franchise[]; people: Person[] }) => void;
 }
 
-export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, onSave }: Props) {
+export function WorkEditor({ work, initialMedium, today, data, pick, media, onCancel, onSave }: Props) {
   const isNew = work === null;
   // 週刊誌は登録したらすぐ毎週数えたいので、発売日の欄を最初から出す
   const withMagazineSchedule = (x: Work): Work => (x.medium === "magazine" && !x.schedule ? { ...x, schedule: { firstDate: today, firstNumber: 1, skipDates: [] } } : x);
@@ -275,7 +277,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, onCancel, o
         </div>
         {mediumOpen && (
           <div className="chips">
-            {MEDIA.map((m) => (
+            {MEDIA.filter((m) => media.includes(m) || m === w.medium).map((m) => (
               <button key={m} type="button" className={`chip${w.medium === m ? " on" : ""}`} onClick={() => { changeMedium(m); setMediumOpen(false); }}>
                 {MEDIUM_LABEL[m]}
               </button>

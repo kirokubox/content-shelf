@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { currentCourList, currentCourName, latestViaMap, subLabel, viaPlaceParts } from "./courLogic";
+import { currentCourList, currentCourName, latestViaMap, subLabel, viaPlaceText } from "./courLogic";
 import { CoverImg } from "./CoverImg";
 import { MEDIUM_LABEL, doneWord, mediumTag, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey } from "./dateUtils";
@@ -73,7 +73,7 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordIt
           </span>
           <span className="list-sub">
             <span className="medium-tag">{mediumTag(work)}</span>
-            {log ? [...viaPlaceParts(log), log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : workStatusWord(work, "done")}
+            {log ? [viaPlaceText(log), log.position ? `${log.position}巻` : ""].filter(Boolean).join("　") || doneWord(work.medium) : workStatusWord(work, "done")}
           </span>
           {log?.note && <span className="list-sub wrap note-excerpt">{log.note}</span>}
         </span>

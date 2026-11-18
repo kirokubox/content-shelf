@@ -144,6 +144,13 @@ export function countsEpisodes(work: Pick<Work, "medium">): boolean {
 }
 
 /** 記録の視聴手段と場所の文字（同じ言葉のときは1回だけ）。例：["放送", "テレビ"]、["配信"] */
+/** 一行表示用。視聴手段の名前に「・」を含むので、場所は括弧に入れて区切りを見分けやすくする。 */
+export function viaPlaceText(log: Pick<Log, "via" | "place">): string {
+  const [via, place] = viaPlaceParts(log);
+  if (!place) return via ?? "";
+  return via ? `${via}（${place}）` : place;
+}
+
 export function viaPlaceParts(log: Pick<Log, "via" | "place">): string[] {
   const via = log.via ? LOG_VIA_LABEL[log.via] : "";
   const place = log.place && log.place !== via ? log.place : "";

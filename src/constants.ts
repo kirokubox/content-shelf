@@ -1,7 +1,7 @@
 import type { Access, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, Work, WorkState, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.15.0";
+export const APP_VERSION = "0.16.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 4;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CoverImg } from "./CoverImg";
 import { ACCESS_LABEL, CLEAR_LABEL, PURCHASE_FORMAT_LABEL, PURCHASE_STAGE_LABEL, UNIT_LABEL, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, workPeopleLabel, workStateWord, workStatusWord } from "./constants";
-import { canAddCurrentRerun, formatCour, subLabel, viaPlaceParts } from "./courLogic";
+import { canAddCurrentRerun, formatCour, subLabel, viaPlaceText } from "./courLogic";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, roundsLabel, unconsumedCount, unpurchasedCount } from "./progressLogic";
@@ -261,7 +261,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
                       {l.position ? `　第${l.position}${unit || "回"}` : ""}
                       {l.issueDate ? `　${formatDateShort(l.issueDate)}発売の号` : ""}
                     </span>
-                    {viaPlaceParts(l).length > 0 && <span className="list-sub">{viaPlaceParts(l).join("・")}</span>}
+                    {viaPlaceText(l) && <span className="list-sub">{viaPlaceText(l)}</span>}
                     {l.note && <span className="list-sub wrap note-excerpt">{l.note}</span>}
                   </span>
                   {l.rating ? <Stars value={l.rating} /> : null}

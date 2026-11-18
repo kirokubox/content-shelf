@@ -223,6 +223,16 @@ export function continueGroup(work: Work): ContinueGroup | null {
   return "following";
 }
 
+/**
+ * 新刊待ち：マンガで、進行中、作品が完結していない、読んだ巻が最新の巻と同じ。
+ * 表示だけの自動判定で、保存はしない。
+ */
+export function isWaitingForNewVolume(work: Work, today: string): boolean {
+  if (work.medium !== "manga" || work.status !== "active" || work.finished === true) return false;
+  const available = availableCount(work, today);
+  return available !== null && available > 0 && work.progress === available;
+}
+
 /** 次にやることがある（未消化・未購入がある）か */
 export function hasNext(work: Work, today: string): boolean {
   return (unconsumedCount(work, today) ?? 0) > 0 || unpurchasedCount(work) > 0;

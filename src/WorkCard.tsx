@@ -3,7 +3,7 @@ import { CoverImg } from "./CoverImg";
 import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
-import { latestLabel, ownedGapSummary, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import type { Work } from "./types";
 
 /** 押して離したら onTap、長押しなら onLong（＋1の長押しで日付を選ぶ） */
@@ -63,6 +63,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
           </span>
           <span className="work-sub dim">
             最終 {formatDateShort(isoToDateKey(work.touchedAt))}
+            {isWaitingForNewVolume(work, today) && <span className="wait-note">新刊待ち</span>}
             {gaps.count > 0 && <span className="gap-note">抜け {gaps.count}巻</span>}
           </span>
         </button>

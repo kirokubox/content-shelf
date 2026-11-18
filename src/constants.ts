@@ -58,16 +58,6 @@ export function doneWord(medium: Medium): string {
   return "見た・読んだ";
 }
 
-/** 単発ものの「これから」の言い方 */
-export function wishWord(medium: Medium): string {
-  if (medium === "movie") return "見たい";
-  if (medium === "novel") return "読みたい";
-  if (medium === "live") return "行きたい";
-  if (medium === "video") return "見たい";
-  if (medium === "game") return "遊びたい";
-  return "見たい・読みたい";
-}
-
 /** 読むもの（マンガ・小説・週刊誌）か */
 export function isReading(medium: Medium): boolean {
   return medium === "manga" || medium === "novel" || medium === "magazine";
@@ -95,7 +85,7 @@ export function mediumTag(w: Pick<Work, "medium" | "eventKind">): string {
 
 /** 作品に合わせた状態の名前（イベントは区分で変わる） */
 export function workStatusWord(w: Pick<Work, "medium" | "eventKind">, status: WorkStatus): string {
-  if (w.medium === "live" && !isStageEvent(w) && status !== "paused") return status === "wish" ? "行く予定" : "行った";
+  if (w.medium === "live" && !isStageEvent(w) && status !== "paused") return status === "wish" ? "行く予定" : "体験済";
   return statusWord(w.medium, status);
 }
 
@@ -107,13 +97,16 @@ export function workPeopleLabel(w: Pick<Work, "medium" | "eventKind">): string {
   return peopleLabel(w.medium);
 }
 
-/** 状態の名前（名詞）。種類に合わせる（2026-11-01 本人「積読みたいな名詞がいい」） */
+/**
+ * ゆきとの関係の名前（予定／進行中／中断／済）。種類に合わせる。保存している値（wish／active／paused／done）は変えない。
+ * 「積読」は予定＋持っている、という自動表示用にとってある（予定の名前には使わない）
+ */
 export function statusWord(medium: Medium, status: WorkStatus): string {
   if (status === "paused") return "中断";
-  if (medium === "live") return status === "wish" ? "参戦予定" : "参戦済み";
-  if (medium === "game") return { active: "プレイ中", wish: "積みゲー", done: "プレイ済み" }[status];
-  if (isReading(medium)) return { active: "読書中", wish: "積読", done: "読了" }[status];
-  return { active: "視聴中", wish: "視聴予定", done: "視聴済み" }[status];
+  if (medium === "live") return status === "wish" ? "参戦予定" : "参戦済";
+  if (medium === "game") return { active: "プレイ中", wish: "プレイ予定", done: "クリア済" }[status];
+  if (isReading(medium)) return { active: "読書中", wish: "読みたい", done: "読了" }[status];
+  return { active: "視聴中", wish: "視聴予定", done: "視聴済" }[status];
 }
 
 /** 続きを数えないが「途中・中断」を持つ種類（ゲーム・小説） */

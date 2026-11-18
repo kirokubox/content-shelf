@@ -24,7 +24,7 @@ test("前の版のデータは区分なしで読み、LIVEとして扱う", () =
   assert.equal(w.eventKind, null);
   assert.equal(isStageEvent(w), true);
   assert.equal(mediumTag(w), "イベント");
-  assert.equal(workStatusWord(w, "done"), "参戦済み");
+  assert.equal(workStatusWord(w, "done"), "参戦済");
   // イベント以外に区分が入っていても外す
   assert.equal(normalizeWork({ ...emptyWork("movie", NOW), eventKind: "food" }).eventKind, null);
 });
@@ -33,7 +33,7 @@ test("区分で札・状態・人物の欄の名前が変わる", () => {
   const food = { ...emptyWork("live", NOW), eventKind: "food" as const };
   assert.equal(mediumTag(food), "グルメ");
   assert.equal(isStageEvent(food), false);
-  assert.equal(workStatusWord(food, "done"), "行った");
+  assert.equal(workStatusWord(food, "done"), "体験済");
   assert.equal(workStatusWord(food, "wish"), "行く予定");
   assert.equal(workPeopleLabel(food), "お店・出店");
   const ex = { ...emptyWork("live", NOW), eventKind: "exhibit" as const };

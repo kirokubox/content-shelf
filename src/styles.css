@@ -592,6 +592,8 @@ ol.setlist { margin: 0; padding-left: 1.6em; line-height: 1.8; font-size: var(--
 .cover-thumb.cover-fallback .cover-fallback-title { -webkit-line-clamp: 4; font-size: 9px; line-height: 1.2; }
 .hero-cover.cover-fallback .cover-fallback-title, .log-reader-cover.cover-fallback .cover-fallback-title { font-size: var(--kb-fs-xs); }
 .shelf-cover-image.cover-fallback .cover-fallback-title { font-size: var(--kb-fs-xs); }
+.wait-note { color: var(--kb-accent-strong); font-weight: 700; margin-left: 6px; }
+.status-pill.s-waiting { background: var(--kb-surface-2); color: var(--kb-accent-strong); }
 .gap-note { color: var(--kb-warning); font-weight: 700; }
 .chip-count { color: var(--kb-text-3); font-weight: 400; font-size: var(--kb-fs-xs); }
 .chip.on .chip-count { color: inherit; }

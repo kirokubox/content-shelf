@@ -39,7 +39,7 @@ test("古い作品に新しい項目を補う・ゲームの状態の名前", ()
   const w = normalizeWork(old as never);
   assert.deepEqual([w.platform, w.clearLevel, w.ownFormat, w.isOriginal], ["", null, null, false]);
   assert.equal(statusWord("game", "active"), "プレイ中");
-  assert.equal(statusWord("manga", "wish"), "積読");
-  assert.equal(statusWord("movie", "done"), "視聴済み");
+  assert.equal(statusWord("manga", "wish"), "読みたい");
+  assert.equal(statusWord("movie", "done"), "視聴済");
   assert.equal(continueGroup({ ...emptyWork("game", NOW), status: "active" }), "following");
 });

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { CoverImg } from "./CoverImg";
-import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, wishWord, workPeopleLabel, workStatusWord } from "./constants";
+import { CLEAR_LABEL, OWN_FORMAT_LABEL, UNIT_LABEL, VIDEO_OWNED_LABEL, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, workPeopleLabel, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
-import { availableCount, latestLabel, ownedGapSummary, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { availableCount, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesText } from "./WorkEditor";
@@ -65,7 +65,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   if (kind !== "none") {
     if (work.status === "done") statusItems.push({ label: work.medium === "manga" ? "もう一度読む（最初から）" : "もう一度見る（最初から）", onClick: onStartAgain });
     if (work.status !== "active") statusItems.push({ label: work.status === "done" ? "続きに戻す（今の位置のまま）" : "進行中にする", onClick: () => onSetStatus("active") });
-    if (work.status === "active") statusItems.push({ label: "休止にする", onClick: () => onSetStatus("paused") });
+    if (work.status === "active") statusItems.push({ label: "中断にする", onClick: () => onSetStatus("paused") });
     if (work.status !== "done") statusItems.push({ label: work.medium === "manga" ? "読み終えた（記録へ）" : "見終えた（記録へ）", onClick: () => onSetStatus("done") });
   } else if (hasOngoingStatus(work.medium)) {
     // ゲーム・小説は続きを数えないが、途中（プレイ中・読書中）と中断を持つ
@@ -76,8 +76,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
       else statusItems.push({ label: `${workStatusWord(work, s)}にする`, onClick: () => onSetStatus(s) });
     }
   } else {
-    if (work.status === "wish") statusItems.push({ label: `${doneWord(work.medium)}にする`, onClick: () => onSetStatus("done") });
-    else statusItems.push({ label: `${wishWord(work.medium)}に戻す`, onClick: () => onSetStatus("wish") });
+    if (work.status === "wish") statusItems.push({ label: `${workStatusWord(work, "done")}にする`, onClick: () => onSetStatus("done") });
+    else statusItems.push({ label: `${workStatusWord(work, "wish")}に戻す`, onClick: () => onSetStatus("wish") });
   }
   if (work.status !== "wish" && kind !== "none") statusItems.push({ label: `${workStatusWord(work, "wish")}にする`, onClick: () => onSetStatus("wish") });
   statusItems.push({ label: "作品を削除", danger: true, onClick: onDelete });
@@ -117,6 +117,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
             <div className="hero-tags">
               <span className="medium-tag">{mediumTag(work)}</span>
               <span className={`status-pill s-${work.status}`}>{workStatusWord(work, work.status)}</span>
+              {isWaitingForNewVolume(work, today) && <span className="status-pill s-waiting">新刊待ち</span>}
               {work.isOriginal && <span className="status-pill s-original">原作</span>}
             </div>
             {franchise && (

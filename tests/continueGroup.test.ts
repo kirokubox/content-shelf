@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { continueGroup, hasNext, startAgain } from "../src/progressLogic.js";
+import { continueGroup, hasNext, isWaitingForNewVolume, startAgain } from "../src/progressLogic.js";
 import { emptyWork } from "../src/workFactory.js";
+import { statusWord, workStatusWord } from "../src/constants.js";
 
 const NOW = "2026-11-01T03:00:00.000Z";
 
@@ -56,4 +57,38 @@ test("小説は読書中のときだけ途中に並ぶ。読了・積読・中�
   for (const status of ["done", "wish", "paused"] as const) assert.equal(continueGroup({ ...emptyWork("novel", NOW), title: "n", status }), null);
   // 読書中の小説は数える続きを持たないので、「次にやること」には入らない
   assert.equal(hasNext({ ...emptyWork("novel", NOW), title: "n", status: "active" }, "2026-11-01"), false);
+});
+
+test("新刊待ち：進行中・未完結のマンガで、読んだ巻が最新巻と同じとき", () => {
+  const base = { ...emptyWork("manga", NOW), title: "m", status: "active" as const, latestKnown: 5, progress: 5 };
+  const T = "2026-11-18";
+  assert.equal(isWaitingForNewVolume(base, T), true);
+  assert.equal(isWaitingForNewVolume({ ...base, progress: 4 }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, finished: true, total: 5 }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, status: "paused" }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, status: "done" }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, latestKnown: null, progress: null }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, medium: "anime" }, T), false);
+  // 追いついているのたたみにそのまま入る（やることがない）
+  assert.equal(hasNext(base, T), false);
+});
+
+test("関係の表示名（予定／進行中／中断／済）", () => {
+  const want = {
+    anime: ["視聴予定", "視聴中", "視聴済"], drama: ["視聴予定", "視聴中", "視聴済"], movie: ["視聴予定", "視聴中", "視聴済"],
+    manga: ["読みたい", "読書中", "読了"], novel: ["読みたい", "読書中", "読了"], magazine: ["読みたい", "読書中", "読了"],
+    live: ["参戦予定", "視聴中", "参戦済"], game: ["プレイ予定", "プレイ中", "クリア済"],
+  } as const;
+  for (const [m, [wish, active, done]] of Object.entries(want)) {
+    if (m !== "live") {
+      assert.equal(statusWord(m as never, "wish"), wish);
+      assert.equal(statusWord(m as never, "done"), done);
+    }
+    if (m !== "live") assert.equal(statusWord(m as never, "active"), active);
+    assert.equal(statusWord(m as never, "paused"), "中断");
+  }
+  assert.equal(statusWord("live", "wish"), "参戦予定");
+  assert.equal(statusWord("live", "done"), "参戦済");
+  assert.equal(workStatusWord({ medium: "live", eventKind: "food" }, "wish"), "行く予定");
+  assert.equal(workStatusWord({ medium: "live", eventKind: "food" }, "done"), "体験済");
 });

@@ -2,7 +2,8 @@
 // 外部情報なしで動く（仕様181 §5.1）。かぞえ帳の「毎週たまる」と同じ考え方。
 import { PROGRESS_KIND } from "./constants.js";
 import { addDays, nowIso } from "./dateUtils.js";
-import type { Log, ProgressKind, VolumeRange, WeeklySchedule, Work } from "./types.js";
+import { courPeriodOf, hasCourIn } from "./courLogic.js";
+import type { Log, LogVia, ProgressKind, RangeMedium, VolumeRange, WeeklySchedule, Work } from "./types.js";
 
 export function progressKindOf(work: Pick<Work, "medium">): ProgressKind {
   return PROGRESS_KIND[work.medium];
@@ -34,7 +35,7 @@ export function availableCount(work: Work, today: string): number | null {
       return work.total !== null ? Math.min(latest, work.total) : latest;
     }
     if (work.latestKnown !== null) return work.latestKnown;
-    return work.finished === true ? work.total : null;
+    return work.workState === "finished" ? work.total : null;
   }
   if (kind === "volume") {
     if (work.latestKnown !== null) return work.total !== null ? Math.max(work.latestKnown, work.total) : work.latestKnown;
@@ -63,7 +64,7 @@ export function unconsumedCount(work: Work, today: string): number | null {
 export function isFullyConsumed(work: Work): boolean {
   const kind = progressKindOf(work);
   if (kind !== "episode" && kind !== "volume") return false;
-  if (work.finished !== true || work.total === null || work.progress === null) return false;
+  if (work.workState !== "finished" || work.total === null || work.progress === null) return false;
   return work.progress >= work.total;
 }
 
@@ -123,12 +124,12 @@ export function latestLabel(work: Work, today: string): string {
   const kind = progressKindOf(work);
   const available = availableCount(work, today);
   if (kind === "episode") {
-    if (work.finished === true && work.total !== null && available === work.total) return `全${work.total}話`;
+    if (work.workState === "finished" && work.total !== null && available === work.total) return `全${work.total}話`;
     return available !== null ? `放送 第${available}話まで` : "";
   }
   if (kind === "volume") {
     if (available === null) return "";
-    return work.finished === true ? `全${available}巻` : `既刊 ${available}巻`;
+    return work.workState === "finished" ? `全${available}巻` : `既刊 ${available}巻`;
   }
   return "";
 }
@@ -181,33 +182,60 @@ export function unpurchasedCount(work: Work): number {
   return Math.max(0, latest - ownedMax(work));
 }
 
-/** 「買った」：持っている巻の次の1巻を足す（範囲がつながっていればのばす） */
+/** 範囲の並びから、1つの巻だけ取り除く（予約中の巻を買ったとき） */
+export function removeVolume(ranges: VolumeRange[], n: number): VolumeRange[] {
+  const out: VolumeRange[] = [];
+  for (const r of ranges) {
+    if (n < r.from || n > r.to) out.push({ ...r });
+    else {
+      if (r.from < n) out.push({ ...r, to: n - 1 });
+      if (n < r.to) out.push({ ...r, from: n + 1 });
+    }
+  }
+  return out;
+}
+
+/** 「買った」：持っている巻の次の1巻を足す（範囲がつながっていて形も同じならのばす）。購入の段階は「所持」にする */
 export function markBoughtNext(work: Work, now: string = nowIso()): Work {
-  const owned = work.owned ?? { known: true, ranges: [], medium: null, place: null };
+  const owned = work.owned ?? { known: true, ranges: [], reserved: [], place: null };
   const next = ownedMax(work) + 1;
   const ranges = owned.ranges.map((r) => ({ ...r }));
-  const last = ranges.find((r) => r.to === next - 1);
-  if (last) last.to = next;
-  else ranges.push({ from: next, to: next });
-  return { ...work, owned: { ...owned, known: true, ranges }, updatedAt: now, touchedAt: now };
+  const lastRange = ranges.find((r) => r.to === next - 1);
+  const fmt = work.purchase.format;
+  const medium: RangeMedium = fmt === "paper" || fmt === "kindle" ? fmt : (lastRange?.medium ?? null);
+  if (lastRange && (lastRange.medium ?? null) === medium) lastRange.to = next;
+  else ranges.push({ from: next, to: next, medium });
+  return {
+    ...work,
+    owned: { ...owned, known: true, ranges, reserved: removeVolume(owned.reserved, next) },
+    purchase: { ...work.purchase, stage: "owned" },
+    updatedAt: now,
+    touchedAt: now,
+  };
 }
 
 /** 「新刊が出た」：既刊を1つ増やす（既刊が分からなければ、持っている巻・読んだ巻の大きい方の次） */
 export function markNewVolume(work: Work, now: string = nowIso()): Work {
   const base = Math.max(availableCount(work, "9999-12-31") ?? 0, ownedMax(work), work.progress ?? 0);
-  return withAutoStatus({ ...work, latestKnown: base + 1, finished: work.finished === true ? false : work.finished, updatedAt: now, touchedAt: now }, now);
+  return withAutoStatus({ ...work, latestKnown: base + 1, workState: work.workState === "finished" ? "ongoing" : work.workState, updatedAt: now, touchedAt: now }, now);
 }
 
 export type ContinueGroup = "following" | "reading";
 
+export interface ContinueContext {
+  today: string;
+  /** その作品の一番新しい記録の視聴手段（無ければ null＝放送として扱う） */
+  latestVia: LogVia | null;
+}
+
 /**
- * 続きタブの置き場（2026-11-01 本人と認識合わせ。2026-11-15 に線引きを直した）。
- * 追っている（following）＝毎週積み上がるもの：毎週の放送予定を入れたアニメ・ドラマ、週刊誌、新刊を買うマンガ、プレイ中のゲーム。
- * 途中（reading）＝自分の進み具合で進めるもの：放送予定を入れていない進行中のアニメ・ドラマ（配信で後から見る作品など）、
- * 新刊を買う印のない進行中のマンガ（再読中も）、読書中の小説。
- * 進行中でないもの・続きも途中も持たないものは null
+ * 続きタブの置き場（2026-11-18 状態の設計を作品の状態ベースに直した）。
+ * 追っている（following）＝アニメ・ドラマは「放送予定が入っている」か「放送中で今期のクールが付いていて、最新の記録が配信でない」もの。
+ * 週刊誌・「続きの巻も買う」マンガ・プレイ中のゲームはそのまま追っている。
+ * 途中（reading）＝追っているに入らない進行中すべて（完結した作品の続き、配信で後から追っている作品、読みかけのマンガ、読書中の小説）。
+ * 進行中でないもの・続きも途中も持たないものは null。予定（これから）と中断は状態で分ける
  */
-export function continueGroup(work: Work): ContinueGroup | null {
+export function continueGroup(work: Work, ctx: ContinueContext = { today: "9999-12-31", latestVia: null }): ContinueGroup | null {
   // 読了・積読・中断でも、買う新刊が残っているマンガは「追っている」に出す。状態自体は変えない。
   if (work.medium === "manga" && work.buying && unpurchasedCount(work) > 0) return "following";
   if (work.status !== "active") return null;
@@ -218,9 +246,22 @@ export function continueGroup(work: Work): ContinueGroup | null {
   const kind = progressKindOf(work);
   if (kind === "none") return null;
   if (work.medium === "manga") return work.buying ? "following" : "reading";
-  // アニメ・ドラマは、毎週の放送予定を入れた作品だけ「追っている」。入れていなければ「途中」
-  if (kind === "episode") return work.schedule ? "following" : "reading";
+  if (kind === "episode") {
+    if (work.schedule) return "following";
+    if (work.workState === "ongoing" && hasCourIn(work, courPeriodOf(ctx.today)) && ctx.latestVia !== "streaming") return "following";
+    return "reading";
+  }
   return "following";
+}
+
+/** 積読：予定（まだ読み始めていない）で、手元にある（購入の段階が所持）。表示だけの自動判定 */
+export function isTsundoku(work: Pick<Work, "status" | "purchase">): boolean {
+  return work.status === "wish" && work.purchase.stage === "owned";
+}
+
+/** 「2周目」など。1周目は出さない */
+export function roundsLabel(work: Pick<Work, "rounds">): string {
+  return work.rounds >= 2 ? `${work.rounds}周目` : "";
 }
 
 /**
@@ -228,7 +269,7 @@ export function continueGroup(work: Work): ContinueGroup | null {
  * 表示だけの自動判定で、保存はしない。
  */
 export function isWaitingForNewVolume(work: Work, today: string): boolean {
-  if (work.medium !== "manga" || work.status !== "active" || work.finished === true) return false;
+  if (work.medium !== "manga" || work.status !== "active" || work.workState === "finished") return false;
   const available = availableCount(work, today);
   return available !== null && available > 0 && work.progress === available;
 }
@@ -240,5 +281,5 @@ export function hasNext(work: Work, today: string): boolean {
 
 /** 再読・再視聴：記録はそのまま、位置を最初に戻して進行中へ */
 export function startAgain(work: Work, now: string = nowIso()): Work {
-  return { ...work, status: "active", progress: null, completedAt: null, touchedAt: now, updatedAt: now };
+  return { ...work, status: "active", progress: null, rounds: Math.max(1, work.rounds) + 1, completedAt: null, touchedAt: now, updatedAt: now };
 }

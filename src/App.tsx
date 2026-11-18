@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { applyAnilist, fetchAnilistByIds } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { ConfirmSheet } from "./BottomSheet";
-import { MEDIUM_LABEL, REFRESH_INTERVAL_MS, workStatusWord } from "./constants";
+import { MEDIUM_LABEL, REFRESH_INTERVAL_MS, hasVia, workStatusWord } from "./constants";
+import { addCour, currentRerun, defaultVia } from "./courLogic";
 import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
@@ -16,7 +17,7 @@ import { SettingsView } from "./SettingsView";
 import { loadAll, putRecords, replaceAll, requestPersist } from "./storage";
 import { TabBar, TABS } from "./TabBar";
 import type { TabId } from "./TabBar";
-import { ContinueView, HomeView, RecordsView, SummaryView } from "./TabViews";
+import { ContinueView, CourView, HomeView, RecordsView, SummaryView } from "./TabViews";
 import { useToast } from "./Toast";
 import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
 import { WorkDetail } from "./WorkDetail";
@@ -26,6 +27,7 @@ import { newLog } from "./workFactory";
 type Overlay =
   | { kind: "search" }
   | { kind: "settings" }
+  | { kind: "cour" }
   | { kind: "detail"; workId: string }
   | { kind: "log"; workId: string; logId: string }
   | { kind: "editor"; workId: string | null; medium: Medium; pick?: AnilistMedia }
@@ -123,7 +125,7 @@ export default function App() {
   const step = (work: Work, date: string = today) => {
     const r = stepForward(work, date, today);
     if ("error" in r) return showToast(r.error);
-    const log = newLog(r.log);
+    const log = newLog({ ...r.log, via: hasVia(work.medium) ? defaultVia(work, data.logs, today) : null });
     commit({ works: [r.work], logs: [log] });
     const kind = progressKindOf(work);
     const what = kind === "issue" ? "1号読んだ" : kind === "episode" ? `第${r.log.position}話を見た` : `${r.log.position}巻を読んだ`;
@@ -226,7 +228,7 @@ export default function App() {
       </header>
       <main className="content" key={tab}>
         {!loaded ? null : tab === "home" ? (
-          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} enabledMedia={enabledMedia} onToggleMedium={toggleEnabledMedium} />
+          <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoCour={() => push({ kind: "cour" })} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} enabledMedia={enabledMedia} onToggleMedium={toggleEnabledMedium} />
         ) : tab === "continue" ? (
           <ContinueView data={data} handlers={handlers} onAdd={openAdd} enabledMedia={enabledMedia} />
         ) : tab === "records" ? (
@@ -260,6 +262,7 @@ export default function App() {
               }}
             />
           );
+        if (o.kind === "cour") return <CourView key={key} data={data} handlers={handlers} onBack={pop} />;
         if (o.kind === "franchise") {
           const f = data.franchises.find((x) => x.id === o.id && x.deletedAt === null);
           if (!f) return null;
@@ -404,6 +407,10 @@ export default function App() {
             onDelete={() => setConfirmDelete(w)}
             onBought={() => bought(w)}
             onNewVolume={() => newVolume(w)}
+            onAddRerun={() => {
+              commit({ works: [{ ...w, cours: addCour(w.cours, currentRerun(today)), updatedAt: nowIso() }] });
+              showToast("今期の再放送を足しました");
+            }}
             onStartAgain={() => {
               commit({ works: [startAgain(w)] });
               showToast(w.medium === "manga" ? "読みかけに戻しました（記録は残っています）" : "続きに戻しました（記録は残っています）", 4000, { label: "取り消す", onClick: () => commit({ works: [{ ...w, updatedAt: nowIso() }] }) });
@@ -415,6 +422,7 @@ export default function App() {
       {sheet && sheetWork && (
         <LogSheet
           work={sheetWork}
+          logs={data.logs}
           log={sheet.log}
           today={today}
           newKind={sheet.newKind}

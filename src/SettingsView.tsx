@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { describeMigration } from "./migrate";
+import type { MigrationReport } from "./migrate";
 import { parseBackup, planMerge, planUpdate } from "./backup";
 import { assemblePhotos, buildBackupFile, readBackupFile } from "./photoBackup";
-import { getAllPhotoIds, getAllPhotos, putPhotos, replacePhotos } from "./storage";
+import { getAllPhotoIds, getAllPhotos, getMigrationBackup, getMigrationReport, putPhotos, replacePhotos } from "./storage";
 import { forgetPhotoUrls } from "./useCover";
 import { withThumbs } from "./photos";
 import type { MergePlan, UpdatePlan } from "./backup";
@@ -20,9 +22,15 @@ import { MEDIA } from "./types";
 import type { DataSet, Medium, StoredPhoto } from "./types";
 
 type Pending =
-  | { kind: "restore"; data: DataSet; works: number; logs: number; photos: StoredPhoto[] }
-  | { kind: "merge"; plan: MergePlan; label: string; photos: StoredPhoto[] }
-  | { kind: "update"; plan: UpdatePlan; photos: StoredPhoto[] };
+  | { kind: "restore"; data: DataSet; works: number; logs: number; photos: StoredPhoto[]; migration: MigrationReport | null }
+  | { kind: "merge"; plan: MergePlan; label: string; photos: StoredPhoto[]; migration: MigrationReport | null }
+  | { kind: "update"; plan: UpdatePlan; photos: StoredPhoto[]; migration: MigrationReport | null };
+
+/** 確認の文に足す、版1のバックアップを新しい形へ移し替えた結果の行 */
+function migrationLine(m: MigrationReport | null): string {
+  if (!m) return "";
+  return "\n\n古い形のバックアップなので、新しい形へ移し替えてから取り込みます。\n" + describeMigration(m).join("\n");
+}
 
 /** 確認の文に足す写真の行 */
 function photoLine(photos: StoredPhoto[], missing: number): string {
@@ -101,7 +109,7 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
     if (mode === "manga") {
       const r = parseMangaShelfBackup(await file.text(), nowIso());
       if (!r.ok) return setError(r.error);
-      setPending({ kind: "merge", plan: planMerge(data, { franchises: [], works: r.works, logs: [], people: [] }), label: "マンガ棚から取り込む", photos: [] });
+      setPending({ kind: "merge", plan: planMerge(data, { franchises: [], works: r.works, logs: [], people: [] }), label: "マンガ棚から取り込む", photos: [], migration: null });
       return;
     }
     let text: string;
@@ -115,9 +123,9 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
     if (!r.ok) return setError(r.error);
     const { photos, missing } = assemblePhotos(text, blobs);
     setMissingPhotos(missing);
-    if (mode === "update") return setPending({ kind: "update", plan: planUpdate(data, r.data), photos });
-    if (mode === "restore") setPending({ kind: "restore", data: r.data, works: r.data.works.length, logs: r.data.logs.length, photos });
-    else setPending({ kind: "merge", plan: planMerge(data, r.data), label: "バックアップから追加", photos });
+    if (mode === "update") return setPending({ kind: "update", plan: planUpdate(data, r.data), photos, migration: r.migration });
+    if (mode === "restore") setPending({ kind: "restore", data: r.data, works: r.data.works.length, logs: r.data.logs.length, photos, migration: r.migration });
+    else setPending({ kind: "merge", plan: planMerge(data, r.data), label: "バックアップから追加", photos, migration: r.migration });
   };
 
   /** 追加・更新：まだ無い写真だけ入れる（写真は差し替えると新しい id になるので、同じ id は同じ写真） */
@@ -154,6 +162,20 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
     }
   };
 
+  // この端末で版1から版2へ移し替えたときの結果（無ければ出さない）
+  const [migReport, setMigReport] = useState<MigrationReport | null>(null);
+  const [hasMigBackup, setHasMigBackup] = useState(false);
+  useEffect(() => {
+    getMigrationReport().then((r) => setMigReport(r ?? null)).catch(() => undefined);
+    getMigrationBackup().then((b) => setHasMigBackup(b !== undefined)).catch(() => undefined);
+  }, []);
+  const exportMigBackup = async () => {
+    const b = await getMigrationBackup();
+    if (!b) return setError("移し替え前のデータが見つかりませんでした");
+    downloadTextFile(`content-shelf-before-migration-${today}.json`, JSON.stringify({ app: "content-shelf", version: 1, exportedAt: b.savedAt, ...b.data }, null, 2), "application/json");
+    showToast("移し替え前のデータを書き出しました");
+  };
+
   const works = data.works.filter((w) => w.deletedAt === null).length;
   const logs = data.logs.filter((l) => l.deletedAt === null).length;
 
@@ -183,6 +205,21 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
           </button>
         </div>
       </section>
+      {(migReport || hasMigBackup) && (
+        <section className="card">
+          <h2>データの形の移し替え</h2>
+          <p className="muted small">データの形を新しくしたとき、端末のデータを自動で移しました。移す前のデータは、この端末の中にそのまま残してあります。</p>
+          {migReport && <pre className="migration-text">{describeMigration(migReport).join("\n")}</pre>}
+          {hasMigBackup && (
+            <div className="setting-list">
+              <button type="button" className="setting-row" onClick={() => void exportMigBackup()}>
+                <span className="setting-label">移し替え前のデータを書き出す（JSON）</span>
+                <Icon name="download" size={20} />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
       <section className="card">
         <h2>テキストで書き出す</h2>
         <p className="muted small">好きなもの台帳やAIとの振り返りに渡すためのテキストです。週は月曜〜日曜です。</p>
@@ -279,7 +316,7 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
       {pending?.kind === "restore" && (
         <ConfirmSheet
           title="バックアップから戻す"
-          message={`いまのデータ（${works}作品・${logs}件の記録）を消して、バックアップの${pending.works}作品・${pending.logs}件の記録に入れ替えます。先にいまのバックアップを保存しておくと安心です。${photoLine(pending.photos, missingPhotos)}`}
+          message={`いまのデータ（${works}作品・${logs}件の記録）を消して、バックアップの${pending.works}作品・${pending.logs}件の記録に入れ替えます。先にいまのバックアップを保存しておくと安心です。${photoLine(pending.photos, missingPhotos)}${migrationLine(pending.migration)}`}
           confirmLabel="入れ替える"
           danger
           busy={busy}
@@ -292,7 +329,7 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
           title="バックアップから更新"
           message={pending.plan.counts
             .map((c) => `${c.label}：追加${c.added}・更新${c.updated}（この端末の方が新しい・同じ ${c.kept}件はそのまま）`)
-            .join("\n") + photoLine(pending.photos, missingPhotos)}
+            .join("\n") + photoLine(pending.photos, missingPhotos) + migrationLine(pending.migration)}
           confirmLabel="更新する"
           busy={busy}
           onConfirm={confirm}
@@ -305,7 +342,7 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
           message={pending.plan.counts
             .filter((c) => c.incoming > 0)
             .map((c) => `${c.label}：${c.incoming}件のうち、新しく${c.added}件を追加（すでにある${c.skipped}件はそのまま）`)
-            .join("\n") + photoLine(pending.photos, missingPhotos) || "追加するものはありません"}
+            .join("\n") + photoLine(pending.photos, missingPhotos) + migrationLine(pending.migration) || "追加するものはありません"}
           confirmLabel="追加する"
           busy={busy}
           onConfirm={confirm}

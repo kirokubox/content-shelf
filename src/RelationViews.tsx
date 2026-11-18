@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { subLabel } from "./courLogic";
 import { CoverImg } from "./CoverImg";
 import { MEDIUM_LABEL, mediumTag, workStatusWord } from "./constants";
 import { formatLogDate } from "./dateUtils";
@@ -35,7 +36,7 @@ function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works
               <span className="list-main">
                 <span className="list-name">
                   {w.title}
-                  {w.seasonLabel && <span className="work-season"> {w.seasonLabel}</span>}
+                  {subLabel(w) && <span className="work-season"> {subLabel(w)}</span>}
                 </span>
                 <span className="list-sub">
                   <span className="medium-tag">{mediumTag(w)}</span>

@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
+import { currentCourList, currentCourName, latestViaMap, subLabel, viaPlaceParts } from "./courLogic";
 import { CoverImg } from "./CoverImg";
 import { MEDIUM_LABEL, doneWord, mediumTag, workStatusWord } from "./constants";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
-import { Stars } from "./Screen";
+import { Screen, Stars } from "./Screen";
 import { countUnit, completedWorks, monthlyCounts, summarize } from "./summaryLogic";
 import type { Period } from "./summaryLogic";
 import type { DataSet, Log, Medium, Work } from "./types";
@@ -11,7 +12,7 @@ import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
 import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
 import { MonthSummaryView } from "./MonthSummaryView";
-import { continueGroup, hasNext, ownedGapSummary, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount, unpurchasedCount } from "./progressLogic";
 
 interface CardHandlers {
   today: string;
@@ -68,11 +69,11 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordIt
         <span className="list-main">
           <span className="list-name">
             {work.title}
-            {work.seasonLabel && <span className="work-season"> {work.seasonLabel}</span>}
+            {subLabel(work) && <span className="work-season"> {subLabel(work)}</span>}
           </span>
           <span className="list-sub">
             <span className="medium-tag">{mediumTag(work)}</span>
-            {log ? [log.place, log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : workStatusWord(work, "done")}
+            {log ? [...viaPlaceParts(log), log.position ? `${log.position}巻` : ""].filter(Boolean).join("・") || doneWord(work.medium) : workStatusWord(work, "done")}
           </span>
           {log?.note && <span className="list-sub wrap note-excerpt">{log.note}</span>}
         </span>
@@ -85,17 +86,19 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordIt
   );
 }
 
-export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onOpenRecord, enabledMedia, onToggleMedium }: { enabledMedia: Medium[] | null; onToggleMedium: (medium: Medium) => void; data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
+export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRecords, onOpenRecord, enabledMedia, onToggleMedium }: { onGoCour: () => void; enabledMedia: Medium[] | null; onToggleMedium: (medium: Medium) => void; data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
   const covers = useMemo(
     () => data.works.filter((w) => w.deletedAt === null).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 12),
     [data.works],
   );
+  const viaMap = useMemo(() => latestViaMap(data.logs), [data.logs]);
+  const courCount = useMemo(() => currentCourList(data.works, data.logs, handlers.today).active.length, [data.works, data.logs, handlers.today]);
   const waiting = useMemo(
     () => data.works
-      .filter((w) => w.deletedAt === null && continueGroup(w) === "following" && hasNext(w, handlers.today))
+      .filter((w) => w.deletedAt === null && continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === "following" && hasNext(w, handlers.today))
       .sort((a, b) => (unconsumedCount(b, handlers.today) ?? 0) - (unconsumedCount(a, handlers.today) ?? 0) || b.touchedAt.localeCompare(a.touchedAt))
       .slice(0, 5),
-    [data.works, handlers.today],
+    [data.works, handlers.today, viaMap],
   );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
   const totals = useMemo(() => summarize(data, "week", handlers.today), [data, handlers.today]);
@@ -155,6 +158,14 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoRecords, onO
           <div><dt>種類</dt><dd>{totals.length}</dd></div>
         </dl>
       </section>
+      {courCount > 0 && (
+        <section className="card list-card">
+          <button type="button" className="list-head link-head" onClick={onGoCour}>
+            <h2>今期（{currentCourName(handlers.today)}）{courCount}作品</h2>
+            <Icon name="chevron-right" size={18} />
+          </button>
+        </section>
+      )}
       <section className="card list-card">
         <button type="button" className="list-head link-head" onClick={onGoRecords}>
           <h2>直近の記録</h2>
@@ -214,9 +225,9 @@ const CONTINUE_TABS: { id: ContinueTab; label: string }[] = [
   { id: "paused", label: "中断" },
 ];
 const EMPTY_TEXT: Record<ContinueTab, string> = {
-  following: "追っている作品はありません。毎週の放送予定を入れたアニメ・ドラマ、週刊誌、「新刊を買う」の印を付けたマンガがここに並びます。",
-  reading: "途中の作品はありません。読みかけのマンガ、読書中の小説、放送予定を入れていないアニメ・ドラマがここに並びます。",
-  wish: "見たい・読みたい作品はありません。",
+  following: "追っている作品はありません。放送予定を入れたアニメ・ドラマ、今期の放送中の作品、週刊誌、「続きの巻も買う」の印を付けたマンガがここに並びます。",
+  reading: "途中の作品はありません。読みかけのマンガ、読書中の小説、完結した作品の続きや配信で後から見ている作品がここに並びます。",
+  wish: "予定の作品はありません。",
   paused: "中断している作品はありません。",
 };
 
@@ -229,8 +240,9 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
   const [medium, setMedium] = useState<Medium | null>(null);
   const [caughtUpOpen, setCaughtUpOpen] = useState(false);
   const live = data.works.filter((w) => w.deletedAt === null);
+  const viaMap = useMemo(() => latestViaMap(data.logs), [data.logs]);
   const inTab = live.filter((w) =>
-    tab === "following" || tab === "reading" ? continueGroup(w) === tab : w.status === (tab === "wish" ? "wish" : "paused"),
+    tab === "following" || tab === "reading" ? continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === tab : w.status === (tab === "wish" ? "wish" : "paused"),
   );
   const availableMedia = MEDIA.filter((m) => inTab.some((w) => w.medium === m));
   const media = visibleFilterMedia(availableMedia, enabledMedia);
@@ -246,6 +258,9 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
   } else if (tab === "reading") {
     // 漫画喫茶で探しやすいよう、題名（読み仮名）順
     main = [...shown].sort((a, b) => kanaKey(a).localeCompare(kanaKey(b), "ja"));
+  } else if (tab === "wish") {
+    // 積読（予定＋所持）を先に
+    main = [...shown].sort((a, b) => Number(isTsundoku(b)) - Number(isTsundoku(a)) || byRecent(a, b));
   } else {
     main = [...shown].sort(byRecent);
   }
@@ -425,5 +440,46 @@ export function SummaryView({ data, today, onOpen }: { data: DataSet; today: str
       )}
       <p className="muted small center">{formatDate(today, today)}時点</p>
     </>
+  );
+}
+
+/** 今期の一覧：今期のクールが付いた、進行中・予定の作品（最新の記録が配信のものは外す）。済になったものは下にたたむ */
+export function CourView({ data, handlers, onBack }: { data: DataSet; handlers: CardHandlers; onBack: () => void }) {
+  const [doneOpen, setDoneOpen] = useState(false);
+  const { active, done } = useMemo(() => currentCourList(data.works, data.logs, handlers.today), [data.works, data.logs, handlers.today]);
+  return (
+    <Screen title={`今期（${currentCourName(handlers.today)}）`} onBack={onBack}>
+      {active.length === 0 && done.length === 0 ? (
+        <Empty text="今期のクールが付いた作品はありません。作品の編集でクールを足すと、ここに並びます。" />
+      ) : (
+        <>
+          {active.length > 0 && (
+            <section className="card list-card">
+              <p className="muted small pad">{active.length}作品</p>
+              <ul className="work-list">
+                {active.map((c) => (
+                  <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {done.length > 0 && (
+            <section className="card list-card">
+              <button type="button" className="list-head link-head" aria-expanded={doneOpen} onClick={() => setDoneOpen(!doneOpen)}>
+                <h2>視聴済（{done.length}作品）</h2>
+                <Icon name={doneOpen ? "chevron-up" : "chevron-down"} size={18} />
+              </button>
+              {doneOpen && (
+                <ul className="work-list">
+                  {done.map((c) => (
+                    <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </>
+      )}
+    </Screen>
   );
 }

@@ -1,6 +1,6 @@
 // マンガ棚のバックアップ（manga-shelf-backup-*.json、version 2）をコンテンツ棚の作品へ変換する（仕様181 §6.2）。
 // マンガ棚には「いつ読んだか」が無いので、記録（Log）は作らない（日付を創作しない）。
-import type { OwnedMedium, PaperPlace, VolumeRange, Work } from "./types.js";
+import type { Access, PaperPlace, PurchaseStage, RangeMedium, VolumeRange, Work, WorkState } from "./types.js";
 
 interface MangaSeries {
   id: string;
@@ -14,7 +14,7 @@ interface MangaSeries {
   finishedAt?: string | null;
   everCompleted?: boolean;
   ownershipKnown?: boolean;
-  ownedMedium?: OwnedMedium;
+  ownedMedium?: "paper" | "kindle" | "jump_plus" | null;
   paperLocation?: PaperPlace;
   ownedRanges?: VolumeRange[];
   planned?: boolean;
@@ -37,11 +37,15 @@ function posInt(v: unknown): number | null {
 }
 
 export function convertMangaSeries(s: MangaSeries, now: string): Work {
-  const finished = s.publicationStatus === "completed" ? true : s.publicationStatus === "ongoing" ? false : null;
+  const workState: WorkState = s.publicationStatus === "completed" ? "finished" : s.publicationStatus === "ongoing" ? "ongoing" : null;
   const total = posInt(s.totalVolumes);
   const progress = s.readProgressKnown === false ? null : posInt(s.readUpTo);
-  const allRead = finished === true && total !== null && progress !== null && progress >= total;
+  const allRead = workState === "finished" && total !== null && progress !== null && progress >= total;
   const status = s.planned && !progress ? "wish" : allRead ? "done" : "active";
+  const rangeMedium: RangeMedium = s.ownedMedium === "paper" || s.ownedMedium === "kindle" ? s.ownedMedium : null;
+  const access: Access = s.ownedMedium === "jump_plus" ? "jump_plus" : null;
+  const ranges: VolumeRange[] = Array.isArray(s.ownedRanges) ? s.ownedRanges.map((r) => ({ from: r.from, to: r.to, medium: rangeMedium })) : [];
+  const stage: PurchaseStage = ranges.length > 0 ? "owned" : s.planned ? "planned" : "none";
   const created = s.createdAt ?? now;
   const updated = s.updatedAt ?? now;
   return {
@@ -52,10 +56,12 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     medium: "manga",
     title: s.title,
     kana: s.kana ?? "",
-    seasonLabel: "",
+    partLabel: "",
+    cours: [],
+    rounds: 1,
     franchiseId: null,
     status,
-    finished,
+    workState,
     total,
     latestKnown: null,
     schedule: null,
@@ -63,11 +69,13 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     readThrough: null,
     owned: {
       known: s.ownershipKnown ?? false,
-      ranges: Array.isArray(s.ownedRanges) ? s.ownedRanges.map((r) => ({ from: r.from, to: r.to })) : [],
-      medium: s.ownedMedium ?? null,
+      ranges,
+      reserved: [],
       place: s.paperLocation ?? null,
     },
     edition: s.editionLabel ?? "",
+    purchase: { stage, format: stage === "owned" ? rangeMedium : null },
+    access,
     externalIds: { ...(s.anilistId ? { anilist: s.anilistId } : {}), mangaShelf: s.id },
     coverUrl: null,
     memo: s.memo ?? "",
@@ -78,10 +86,8 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     setlist: "",
     infoCheckedAt: null,
     buying: false,
-    videoOwned: null,
     platform: "",
     clearLevel: null,
-    ownFormat: null,
     isOriginal: false,
     shelfPlace: null,
     eventKind: null,

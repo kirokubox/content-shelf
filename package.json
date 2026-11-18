@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "test": "tsc -p tsconfig.test.json && node --test \".test-build/tests/*.test.js\"",
+    "migrate:check": "tsc -p tsconfig.test.json && node tools/migrate-check/migrate-check.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

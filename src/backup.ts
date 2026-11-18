@@ -1,11 +1,14 @@
 // バックアップの保存・検証・追加の差分。画面の言葉は「バックアップを保存／バックアップから戻す／バックアップから追加」
 import { isDateKey } from "./dateUtils.js";
-import { MEDIA, WORK_STATUSES } from "./types.js";
+import { DATA_VERSION } from "./constants.js";
+import { migrateV1ToV2 } from "./migrate.js";
+import type { MigrationReport } from "./migrate.js";
+import { LOG_VIAS, MEDIA, WORK_STATES, WORK_STATUSES } from "./types.js";
 import { normalizeData } from "./dataOps.js";
 import type { BackupFile, DataSet, Franchise, Log, Person, Work } from "./types.js";
 
 export function buildBackup(data: DataSet, exportedAt: string): BackupFile {
-  return { app: "content-shelf", version: 1, exportedAt, franchises: data.franchises, works: data.works, logs: data.logs, people: data.people };
+  return { app: "content-shelf", version: DATA_VERSION, exportedAt, franchises: data.franchises, works: data.works, logs: data.logs, people: data.people };
 }
 
 export function backupFileName(today: string): string {
@@ -26,6 +29,7 @@ function checkBase(r: Record<string, unknown>): boolean {
   return isStr(r.id) && r.id.length > 0 && isStr(r.createdAt) && isStr(r.updatedAt) && (r.deletedAt === null || isStr(r.deletedAt));
 }
 
+/** 版1・版2に共通の作品の検査。版2は、あわせて新しい項目の形も見る（checkWorkV2） */
 function checkWork(r: unknown): r is Work {
   if (!isObj(r) || !checkBase(r)) return false;
   return (
@@ -40,8 +44,20 @@ function checkWork(r: unknown): r is Work {
   );
 }
 
+function checkWorkV2(r: unknown): r is Work {
+  if (!checkWork(r)) return false;
+  const x = r as unknown as Record<string, unknown>;
+  return (
+    (x.workState === null || (WORK_STATES as readonly unknown[]).includes(x.workState)) &&
+    Array.isArray(x.cours) &&
+    isObj(x.purchase) &&
+    isStr(x.partLabel)
+  );
+}
+
 function checkLog(r: unknown): r is Log {
   if (!isObj(r) || !checkBase(r)) return false;
+  if (r.via !== undefined && r.via !== null && !(LOG_VIAS as readonly unknown[]).includes(r.via)) return false;
   return isStr(r.workId) && (r.kind === "progress" || r.kind === "view") && isDateKey(r.date) && isNumOrNull(r.position) && isStr(r.note);
 }
 
@@ -53,7 +69,9 @@ function checkFranchise(r: unknown): r is Franchise {
   return isObj(r) && checkBase(r) && isStr(r.title);
 }
 
-export type ParseResult = { ok: true; data: DataSet; exportedAt: string } | { ok: false; error: string };
+export type ParseResult =
+  | { ok: true; data: DataSet; exportedAt: string; /** 版1から移し替えたときの結果 */ migration: MigrationReport | null }
+  | { ok: false; error: string };
 
 /** 読み込んだ文字列をバックアップとして検証する。1件でも形が崩れていたら何も読まない */
 export function parseBackup(text: string): ParseResult {
@@ -64,10 +82,11 @@ export function parseBackup(text: string): ParseResult {
     return { ok: false, error: "ファイルを読めませんでした（形式が違います）" };
   }
   if (!isObj(json) || json.app !== "content-shelf") return { ok: false, error: "コンテンツ棚のバックアップではありません" };
-  if (json.version !== 1) return { ok: false, error: "このバージョンのバックアップには対応していません" };
+  if (json.version !== 1 && json.version !== 2) return { ok: false, error: "このバージョンのバックアップには対応していません" };
+  const isV2 = json.version === 2;
   const { franchises, works, logs } = json;
   if (!Array.isArray(franchises) || !Array.isArray(works) || !Array.isArray(logs)) return { ok: false, error: "バックアップの中身が足りません" };
-  const badWork = works.findIndex((w) => !checkWork(w));
+  const badWork = works.findIndex((w) => !(isV2 ? checkWorkV2(w) : checkWork(w)));
   if (badWork >= 0) return { ok: false, error: `作品の${badWork + 1}件目の形が正しくありません` };
   const badLog = logs.findIndex((l) => !checkLog(l));
   if (badLog >= 0) return { ok: false, error: `記録の${badLog + 1}件目の形が正しくありません` };
@@ -78,7 +97,13 @@ export function parseBackup(text: string): ParseResult {
   if (!Array.isArray(people)) return { ok: false, error: "バックアップの中身が足りません" };
   const badP = people.findIndex((p) => !checkPerson(p));
   if (badP >= 0) return { ok: false, error: `人物の${badP + 1}件目の形が正しくありません` };
-  return { ok: true, data: normalizeData({ franchises, works, logs, people } as DataSet), exportedAt: isStr(json.exportedAt) ? json.exportedAt : "" };
+  const exportedAt = isStr(json.exportedAt) ? json.exportedAt : "";
+  if (isV2) return { ok: true, data: normalizeData({ franchises, works, logs, people } as DataSet), exportedAt, migration: null };
+  // 版1：新しい形へ移し替えてから取り込む（件数が合わなければ何も読まない）
+  const photos = Array.isArray(json.photos) ? json.photos : [];
+  const m = migrateV1ToV2({ franchises, works, logs, people, photos });
+  if (!m.ok) return { ok: false, error: m.error };
+  return { ok: true, data: m.data, exportedAt, migration: m.report };
 }
 
 export interface MergePlan {

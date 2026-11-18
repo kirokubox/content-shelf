@@ -638,3 +638,12 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .welcome-step { margin: 0 0 var(--kb-space-2); font-weight: 600; }
 .welcome-no { display: inline-block; width: 1.6em; color: var(--kb-accent-strong); font-weight: 700; }
 .welcome-media { margin-bottom: var(--kb-space-2); }
+
+/* 移し替えの結果（設定）：長い行は折り返す */
+.migration-text { margin: var(--kb-space-2) 0; padding: var(--kb-space-2); border-radius: var(--kb-radius-m); background: var(--kb-surface-2); font: inherit; font-size: var(--kb-fs-s); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* 巻の範囲の行・クールの追加・年の見出し（v0.16.0） */
+.range-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.3fr) auto; align-items: center; gap: var(--kb-space-1); margin-bottom: var(--kb-space-1); }
+.range-sep { color: var(--kb-text-3); }
+.cour-add { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--kb-space-2); align-items: center; }
+.year-head { padding: var(--kb-space-2) var(--kb-space-3); font-size: var(--kb-fs-s); font-weight: 700; color: var(--kb-text-2); background: var(--kb-surface-2); }

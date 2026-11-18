@@ -20,7 +20,7 @@ test("追っている＝放送予定のあるアニメ・週刊誌・新刊を�
 test("未購入があるマンガは状態に関係なく追っているへ出し、買い終わると元の状態どおり外れる", () => {
   const base = {
     ...emptyWork("manga", NOW), title: "m", buying: true, latestKnown: 3,
-    owned: { known: true, ranges: [{ from: 1, to: 2 }], medium: null, place: null },
+    owned: { known: true, ranges: [{ from: 1, to: 2 }], reserved: [], place: null },
   };
   for (const status of ["done", "wish", "paused"] as const) assert.equal(continueGroup({ ...base, status }), "following");
   assert.equal(continueGroup({ ...base, status: "done", owned: { ...base.owned, ranges: [{ from: 1, to: 3 }] } }), null);
@@ -31,7 +31,7 @@ test("追いついた作品は「やることがない」になり、たたむ�
   const caught = { ...emptyWork("anime", NOW), title: "a", latestKnown: 5, progress: 5 };
   assert.equal(hasNext(caught, "2026-11-01"), false);
   assert.equal(hasNext({ ...caught, progress: 4 }, "2026-11-01"), true);
-  const buying = { ...emptyWork("manga", NOW), title: "m", buying: true, latestKnown: 10, progress: 10, owned: { known: true, ranges: [{ from: 1, to: 9 }], medium: null, place: null } };
+  const buying = { ...emptyWork("manga", NOW), title: "m", buying: true, latestKnown: 10, progress: 10, owned: { known: true, ranges: [{ from: 1, to: 9 }], reserved: [], place: null } };
   assert.equal(hasNext(buying, "2026-11-01"), true);
 });
 
@@ -64,7 +64,7 @@ test("新刊待ち：進行中・未完結のマンガで、読んだ巻が最�
   const T = "2026-11-18";
   assert.equal(isWaitingForNewVolume(base, T), true);
   assert.equal(isWaitingForNewVolume({ ...base, progress: 4 }, T), false);
-  assert.equal(isWaitingForNewVolume({ ...base, finished: true, total: 5 }, T), false);
+  assert.equal(isWaitingForNewVolume({ ...base, workState: "finished", total: 5 }, T), false);
   assert.equal(isWaitingForNewVolume({ ...base, status: "paused" }, T), false);
   assert.equal(isWaitingForNewVolume({ ...base, status: "done" }, T), false);
   assert.equal(isWaitingForNewVolume({ ...base, latestKnown: null, progress: null }, T), false);
@@ -76,7 +76,7 @@ test("新刊待ち：進行中・未完結のマンガで、読んだ巻が最�
 test("関係の表示名（予定／進行中／中断／済）", () => {
   const want = {
     anime: ["視聴予定", "視聴中", "視聴済"], drama: ["視聴予定", "視聴中", "視聴済"], movie: ["視聴予定", "視聴中", "視聴済"],
-    manga: ["読みたい", "読書中", "読了"], novel: ["読みたい", "読書中", "読了"], magazine: ["読みたい", "読書中", "読了"],
+    manga: ["読書予定", "読書中", "読了"], novel: ["読書予定", "読書中", "読了"], magazine: ["読書予定", "読書中", "読了"],
     live: ["参戦予定", "視聴中", "参戦済"], game: ["プレイ予定", "プレイ中", "クリア済"],
   } as const;
   for (const [m, [wish, active, done]] of Object.entries(want)) {

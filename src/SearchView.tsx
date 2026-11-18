@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { subLabel } from "./courLogic";
 import { mediumTag, workStatusWord } from "./constants";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
@@ -107,7 +108,7 @@ export function SearchView({ data, onBack, onOpen, onOpenPerson, onOpenFranchise
                     <span className="list-main">
                       <span className="list-name">
                         {h.work.title}
-                        {h.work.seasonLabel && <span className="work-season"> {h.work.seasonLabel}</span>}
+                        {subLabel(h.work) && <span className="work-season"> {subLabel(h.work)}</span>}
                       </span>
                       <span className="list-sub">
                         <span className="medium-tag">{mediumTag(h.work)}</span>

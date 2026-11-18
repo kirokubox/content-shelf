@@ -32,7 +32,7 @@ test("放送前は0話、数え方が無ければ未消化は分からない", (
 });
 
 test("＋1で位置が進み、完結と分かっているときだけ記録へ移る", () => {
-  const w = anime({ total: 12, progress: 11, finished: true });
+  const w = anime({ total: 12, progress: 11, workState: "finished" });
   const r = stepForward(w, "2026-10-31", "2026-10-31", NOW);
   assert.ok(!("error" in r));
   if ("error" in r) return;
@@ -40,7 +40,7 @@ test("＋1で位置が進み、完結と分かっているときだけ記録へ�
   assert.equal(r.work.status, "done");
   assert.equal(r.log.position, 12);
 
-  const ongoing = anime({ total: 12, progress: 11, finished: null });
+  const ongoing = anime({ total: 12, progress: 11, workState: null });
   const r2 = stepForward(ongoing, "2026-10-31", "2026-10-31", NOW);
   assert.ok(!("error" in r2) && r2.work.status === "active");
 });
@@ -51,9 +51,9 @@ test("最後まで進んだら＋1しない", () => {
 });
 
 test("最新に追いついただけでは完了にしない", () => {
-  assert.equal(isFullyConsumed(anime({ total: null, progress: 5, finished: true })), false);
-  assert.equal(isFullyConsumed(anime({ total: 5, progress: 5, finished: false })), false);
-  assert.equal(isFullyConsumed(anime({ total: 5, progress: 5, finished: true })), true);
+  assert.equal(isFullyConsumed(anime({ total: null, progress: 5, workState: "finished" })), false);
+  assert.equal(isFullyConsumed(anime({ total: 5, progress: 5, workState: "ongoing" })), false);
+  assert.equal(isFullyConsumed(anime({ total: 5, progress: 5, workState: "finished" })), true);
 });
 
 test("週刊誌：休みの週を除いて未読の号を数え、＋1で次の号へ進む", () => {

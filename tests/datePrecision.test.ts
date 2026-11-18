@@ -34,12 +34,12 @@ test("年だけの記録は月ごと・今月の集計に入れない", () => {
 });
 
 test("古い作品に新しい項目を補う・ゲームの状態の名前", () => {
-  const { platform, clearLevel, ownFormat, isOriginal, ...old } = emptyWork("novel", NOW);
-  void platform; void clearLevel; void ownFormat; void isOriginal;
+  const { platform, clearLevel, isOriginal, ...old } = emptyWork("novel", NOW);
+  void platform; void clearLevel; void isOriginal;
   const w = normalizeWork(old as never);
-  assert.deepEqual([w.platform, w.clearLevel, w.ownFormat, w.isOriginal], ["", null, null, false]);
+  assert.deepEqual([w.platform, w.clearLevel, w.isOriginal, w.purchase.stage, w.rounds], ["", null, false, "none", 1]);
   assert.equal(statusWord("game", "active"), "プレイ中");
-  assert.equal(statusWord("manga", "wish"), "読みたい");
+  assert.equal(statusWord("manga", "wish"), "読書予定");
   assert.equal(statusWord("movie", "done"), "視聴済");
   assert.equal(continueGroup({ ...emptyWork("game", NOW), status: "active" }), "following");
 });

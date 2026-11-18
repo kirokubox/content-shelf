@@ -1,9 +1,10 @@
 import { useRef } from "react";
+import { subLabel } from "./courLogic";
 import { CoverImg } from "./CoverImg";
 import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
-import { isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount, unpurchasedCount } from "./progressLogic";
 import type { Work } from "./types";
 
 /** 押して離したら onTap、長押しなら onLong（＋1の長押しで日付を選ぶ） */
@@ -38,9 +39,11 @@ interface Props {
   onBought?: (work: Work) => void;
   /** 読書中の小説の「読み終えた」：記録の入力を開く */
   onFinish?: (work: Work) => void;
+  /** 今期の再放送として出すとき */
+  rerun?: boolean;
 }
 
-export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought, onFinish }: Props) {
+export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought, onFinish, rerun }: Props) {
   const unpurchased = unpurchasedCount(work);
   const gaps = ownedGapSummary(work);
   const kind = progressKindOf(work);
@@ -55,7 +58,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
         <button type="button" className="work-main" onClick={() => onOpen(work)}>
           <span className="work-title">
             {work.title}
-            {work.seasonLabel && <span className="work-season"> {work.seasonLabel}</span>}
+            {subLabel(work) && <span className="work-season"> {subLabel(work)}</span>}
           </span>
           <span className="work-sub">
             <span className="medium-tag">{mediumTag(work)}</span>
@@ -64,6 +67,9 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
           <span className="work-sub dim">
             最終 {formatDateShort(isoToDateKey(work.touchedAt))}
             {isWaitingForNewVolume(work, today) && <span className="wait-note">新刊待ち</span>}
+            {isTsundoku(work) && <span className="wait-note">積読</span>}
+            {rerun && <span className="wait-note">再放送</span>}
+            {work.rounds >= 2 && <span className="wait-note">{roundsLabel(work)}</span>}
             {gaps.count > 0 && <span className="gap-note">抜け {gaps.count}巻</span>}
           </span>
         </button>

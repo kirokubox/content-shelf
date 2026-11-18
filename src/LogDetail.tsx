@@ -1,4 +1,5 @@
 import { CoverImg } from "./CoverImg";
+import { subLabel, viaPlaceParts } from "./courLogic";
 import { UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, formatLogDate } from "./dateUtils";
 import { Icon } from "./Icon";
@@ -38,7 +39,7 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
         <div className="log-reader-title">
           <span className="medium-tag">{mediumTag(work)}</span>
           <h2>{work.title}</h2>
-          {work.seasonLabel && <p className="muted">{work.seasonLabel}</p>}
+          {subLabel(work) && <p className="muted">{subLabel(work)}</p>}
         </div>
       </section>
       <section className="card">
@@ -55,7 +56,7 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
           <strong>{formatLogDate(log.date, log.datePrecision, today)}</strong>
           {position && <span>{position}</span>}
           {log.issueDate && <span>{formatDateShort(log.issueDate)}発売の号</span>}
-          {log.place && <span>{log.place}</span>}
+          {viaPlaceParts(log).map((t) => <span key={t}>{t}</span>)}
         </div>
         {log.rating && <div className="log-reader-rating"><Stars value={log.rating} /></div>}
         <div className="log-reader-note">

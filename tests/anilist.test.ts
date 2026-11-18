@@ -23,7 +23,7 @@ test("情報の反映は表紙・全話数・完結・放送済みだけで、�
   assert.equal(next.title, "自分で付けた題名");
   assert.equal(next.progress, 3);
   assert.equal(next.total, 12);
-  assert.equal(next.finished, false);
+  assert.equal(next.workState, "ongoing");
   assert.equal(next.latestKnown, 5);
   assert.equal(next.coverUrl, "https://example.invalid/c.jpg");
   assert.equal(next.externalIds.anilist, 1);

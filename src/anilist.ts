@@ -1,6 +1,7 @@
 // AniList（APIキー不要）から、アニメ・マンガの作品情報を取る（段階4。仕様181 §5.2）。
 // 取るのは「題名・表紙・全話数/全巻数・完結か・次に放送する話」だけ。自分の視聴位置は勝手に進めない。
-import type { Work } from "./types.js";
+import { addCour } from "./courLogic.js";
+import type { Cour, Season, Work, WorkState } from "./types.js";
 
 const ENDPOINT = "https://graphql.anilist.co";
 
@@ -121,18 +122,36 @@ export function seasonLabelOf(m: AnilistMedia): string {
   return m.season && m.seasonYear ? `${m.seasonYear}年${name[m.season] ?? ""}` : "";
 }
 
+/** AniListの時期を、クール（本放送）にする。アニメだけ。時期が無ければ null */
+export function courOf(m: AnilistMedia): Cour | null {
+  if (m.type !== "ANIME" || !m.season || !m.seasonYear) return null;
+  const map: Record<string, Season> = { WINTER: "winter", SPRING: "spring", SUMMER: "summer", FALL: "fall" };
+  const season = map[m.season];
+  return season ? { year: m.seasonYear, season, kind: "original" } : null;
+}
+
+/** AniListの状態を作品の状態にする。分からないもの（中止など）は今のまま */
+export function workStateOf(m: AnilistMedia, current: WorkState): WorkState {
+  if (m.status === "FINISHED") return "finished";
+  if (m.status === "RELEASING" || m.status === "HIATUS") return "ongoing";
+  if (m.status === "NOT_YET_RELEASED") return "upcoming";
+  return current;
+}
+
 /**
- * 外部の情報を作品へ反映する。変えるのは「表紙・全話数/全巻数・完結か・（放送日で数えていないアニメの）放送済み話数」だけ。
+ * 外部の情報を作品へ反映する。変えるのは「表紙・全話数/全巻数・作品の状態・本放送のクール・（放送日で数えていないアニメの）放送済み話数」だけ。
+ * クールは、本放送のクールがまだ1つも付いていないときだけ足す（本人が直したクールを戻さない）。
  * 見た位置（progress・readThrough）と状態は触らない（状態の自動切り替えは呼び出し側で withAutoStatus）。
  */
 export function applyAnilist(work: Work, m: AnilistMedia, checkedAt: string): Work {
   const total = m.type === "ANIME" ? m.episodes : m.volumes;
-  const finished = m.status === "FINISHED" ? true : m.status === "RELEASING" || m.status === "HIATUS" || m.status === "NOT_YET_RELEASED" ? false : work.finished;
+  const cour = courOf(m);
   const next: Work = {
     ...work,
     coverUrl: m.cover ?? work.coverUrl,
     total: total ?? work.total,
-    finished,
+    workState: workStateOf(m, work.workState),
+    cours: cour && !work.cours.some((c) => c.kind === "original") ? addCour(work.cours, cour) : work.cours,
     externalIds: { ...work.externalIds, anilist: m.id },
     infoCheckedAt: checkedAt,
   };

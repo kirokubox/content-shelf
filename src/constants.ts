@@ -1,12 +1,16 @@
-import type { EventKind, Medium, ProgressKind, Work, WorkStatus } from "./types.js";
+import type { Access, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, Work, WorkState, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
 export const APP_VERSION = "0.15.0";
 
 export const DB_NAME = "content-shelf";
-export const DB_VERSION = 3;
-/** 版2で people、版3で写真（photos。STORES とは別に読み書きする）を足した */
+export const DB_VERSION = 4;
+/** 版2で people、版3で写真（photos。STORES とは別に読み書きする）、版4で移し替え用の migrations（STORES とは別。データの形の版2）を足した */
 export const STORES = ["franchises", "works", "logs", "people"] as const;
+/** 移し替え前のデータと移し替えの結果を置く（v0.16.0） */
+export const MIGRATION_STORE = "migrations";
+/** バックアップ・データの形の最新の版（版1は移し替えてから使う） */
+export const DATA_VERSION = 2;
 
 export const MEDIUM_LABEL: Record<Medium, string> = {
   anime: "アニメ",
@@ -105,7 +109,7 @@ export function statusWord(medium: Medium, status: WorkStatus): string {
   if (status === "paused") return "中断";
   if (medium === "live") return status === "wish" ? "参戦予定" : "参戦済";
   if (medium === "game") return { active: "プレイ中", wish: "プレイ予定", done: "クリア済" }[status];
-  if (isReading(medium)) return { active: "読書中", wish: "読みたい", done: "読了" }[status];
+  if (isReading(medium)) return { active: "読書中", wish: "読書予定", done: "読了" }[status];
   return { active: "視聴中", wish: "視聴予定", done: "視聴済" }[status];
 }
 
@@ -135,8 +139,66 @@ export const PHOTO_JPEG_QUALITY = 0.82;
 export const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
 export const CLEAR_LABEL = { clear: "クリア", complete: "やりこみ", partway: "途中まで" } as const;
-export const OWN_FORMAT_LABEL = { package: "パッケージ", download: "ダウンロード", tankobon: "単行本", bunko: "文庫", tankobon_bunko: "単行本と文庫", ebook: "電子" } as const;
+/** 購入の形の名前 */
+export const PURCHASE_FORMAT_LABEL: Record<PurchaseFormat, string> = {
+  paper: "紙",
+  kindle: "Kindle",
+  tankobon: "単行本",
+  bunko: "文庫",
+  tankobon_bunko: "単行本と文庫",
+  ebook: "電子",
+  bluray: "Blu-ray",
+  dvd: "DVD",
+  package: "パッケージ",
+  download: "ダウンロード",
+};
 /** ハードの候補（自由入力もできる） */
 export const PLATFORMS = ["Switch", "スマホ", "PS5", "PS4", "PC", "3DS", "DS", "Wii", "PS2", "ゲームボーイ"];
 
-export const VIDEO_OWNED_LABEL = { dvd: "DVD", bluray: "Blu-ray", digital: "配信・デジタル" } as const;
+export const PURCHASE_STAGE_LABEL: Record<PurchaseStage, string> = { none: "未所持", planned: "購入予定", reserved: "予約済", owned: "所持" };
+export const ACCESS_LABEL: Record<Exclude<Access, null>, string> = { jump_plus: "ジャンプ＋", streaming: "配信" };
+/** 版の候補（自由入力もできる） */
+export const EDITION_CANDIDATES = ["限定版", "通常版", "初回限定版", "新装版", "完全版"];
+
+/** 購入の形の選択肢（種類ごと）。出さない種類は空 */
+export function purchaseFormatChoices(medium: Medium): PurchaseFormat[] {
+  if (medium === "manga") return ["paper", "kindle"];
+  if (medium === "novel") return ["tankobon", "bunko", "tankobon_bunko", "ebook"];
+  if (medium === "video" || medium === "live") return ["bluray", "dvd"];
+  if (medium === "game") return ["package", "download"];
+  return [];
+}
+
+/** 作品の状態の言い方。続きを数える種類は「放送中／連載中」、単発ものは「発売前・公開前・開催前」など */
+export function workStateWord(medium: Medium, state: WorkState): string {
+  const kind = PROGRESS_KIND[medium];
+  if (state === null) return "不明";
+  if (state === "upcoming") {
+    if (medium === "anime" || medium === "drama") return "放送前";
+    if (kind !== "none") return "連載前";
+    return medium === "live" ? "開催前" : medium === "movie" || medium === "video" ? "公開前" : "発売前";
+  }
+  if (state === "ongoing") return medium === "anime" || medium === "drama" ? "放送中" : kind === "none" ? "進行中" : "連載中";
+  if (kind !== "none") return "完結";
+  return medium === "live" ? "開催済" : medium === "movie" || medium === "video" ? "公開済" : "発売済";
+}
+
+/** 編集画面の選択肢（単発ものは「進行中」を出さない） */
+export function workStateChoices(medium: Medium): WorkState[] {
+  return PROGRESS_KIND[medium] === "none" ? ["upcoming", "finished", null] : ["upcoming", "ongoing", "finished", null];
+}
+
+/** 視聴手段の名前 */
+export const LOG_VIA_LABEL: Record<LogVia, string> = {
+  broadcast: "放送",
+  rerun: "再放送",
+  streaming: "配信",
+  disc: "円盤",
+  recording: "録画",
+  venue: "劇場・会場",
+};
+
+/** 記録に視聴手段を出す種類（マンガ・小説・週刊誌・ゲームは出さない） */
+export function hasVia(medium: Medium): boolean {
+  return medium === "anime" || medium === "drama" || medium === "movie" || medium === "video" || medium === "live";
+}

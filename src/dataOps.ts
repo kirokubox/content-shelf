@@ -1,5 +1,5 @@
 import { ACCESSES, DIGITAL_STORES, LOG_VIAS, PURCHASE_FORMATS, PURCHASE_STAGES, SEASONS, WORK_STATES } from "./types.js";
-import type { Access, Cour, DataSet, DigitalStore, FuzzyDate, Log, VolumeDate, VolumeRange, Work } from "./types.js";
+import type { Access, Cour, DataSet, DigitalStore, FuzzyDate, Log, Person, VolumeDate, VolumeRange, Work } from "./types.js";
 import { isDateKey } from "./dateUtils.js";
 
 /** 変更分（id で上書き・追加）を全体へ反映した新しいデータ */
@@ -126,6 +126,12 @@ export function normalizeLog(l: Log): Log {
   return out;
 }
 
+/** 人物に、足りない項目（画像のURL）を補う */
+export function normalizePerson(p: Person): Person {
+  const url = typeof p.imageUrl === "string" ? p.imageUrl.trim() : "";
+  return { ...p, imageUrl: url ? url : null };
+}
+
 export function normalizeData(d: Partial<DataSet>): DataSet {
-  return { franchises: d.franchises ?? [], works: (d.works ?? []).map(normalizeWork), logs: (d.logs ?? []).map(normalizeLog), people: d.people ?? [] };
+  return { franchises: d.franchises ?? [], works: (d.works ?? []).map(normalizeWork), logs: (d.logs ?? []).map(normalizeLog), people: (d.people ?? []).map(normalizePerson) };
 }

@@ -216,6 +216,8 @@ export interface Person extends Base {
   name: string;
   kana: string;
   memo: string;
+  /** 人物の画像のURL（アーティスト写真など。無ければ null。v0.18.0。古いデータには項目が無い） */
+  imageUrl?: string | null;
 }
 
 export interface DataSet {

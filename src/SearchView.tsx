@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { subLabel } from "./courLogic";
 import { mediumTag, workStatusWord } from "./constants";
 import type { AnilistMedia } from "./anilist";
@@ -7,6 +7,8 @@ import { Screen } from "./Screen";
 import { parseRecentSearches, rememberRecentSearch, removeRecentSearch, searchFranchises, searchMine, searchPeople } from "./searchLogic";
 import { ownedGapSummary } from "./progressLogic";
 import type { DataSet, Franchise, Person, Work } from "./types";
+import { peopleWithCounts } from "./linkLogic";
+import { PersonImg } from "./PersonImg";
 
 const RECENT_SEARCHES_KEY = "content-shelf:recent-searches";
 
@@ -22,6 +24,9 @@ export function SearchView({ data, onBack, onOpen, onOpenPerson, onOpenFranchise
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"mine" | "ANIME" | "MANGA">("mine");
   const [recent, setRecent] = useState(loadRecentSearches);
+  // 人物一覧（入力が空のとき。作品の多い順。最初は20人まで）
+  const [allPeople, setAllPeople] = useState(false);
+  const personList = useMemo(() => peopleWithCounts(data), [data]);
   const hits = searchMine(data, query);
   const people = searchPeople(data, query);
   const franchises = searchFranchises(data, query);
@@ -63,6 +68,32 @@ export function SearchView({ data, onBack, onOpen, onOpenPerson, onOpenFranchise
           </div>
         </section>
       )}
+      {scope === "mine" && query.trim() === "" && personList.length > 0 && (
+        <section className="card list-card">
+          <div className="list-head">
+            <h2>人物</h2>
+            <span className="muted small">{personList.length}人（作品の多い順）</span>
+          </div>
+          <ul className="list">
+            {(allPeople ? personList : personList.slice(0, 20)).map(({ person, works }) => (
+              <li key={person.id}>
+                <button type="button" className="list-row" onClick={() => onOpenPerson(person)}>
+                  <PersonImg person={person} size={40} />
+                  <span className="list-main">
+                    <span className="list-name">{person.name}</span>
+                    <span className="list-sub">作品・公演 {works}件</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {personList.length > 20 && (
+            <button type="button" className="text-btn more-people" onClick={() => setAllPeople(!allPeople)}>
+              {allPeople ? "20人までにする" : `すべての人物を見る（あと${personList.length - 20}人）`}
+            </button>
+          )}
+        </section>
+      )}
       {scope !== "mine" && (
         <section className="card list-card">
           <div className="list-head"><h2>AniListの作品</h2><span className="muted small">選ぶと登録画面が開きます</span></div>
@@ -85,6 +116,7 @@ export function SearchView({ data, onBack, onOpen, onOpenPerson, onOpenFranchise
             {people.map((p) => (
               <li key={p.id}>
                 <button type="button" className="list-row" onClick={() => { rememberCurrent(); onOpenPerson(p); }}>
+                  <PersonImg person={p} size={34} />
                   <span className="list-main"><span className="list-name">{p.name}</span><span className="list-sub">人物</span></span>
                 </button>
               </li>

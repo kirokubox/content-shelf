@@ -666,3 +666,10 @@ select.text-input { padding: 0 var(--kb-space-2); }
 /* カードの楽しみの日（v0.17.1） */
 .expect-note { color: var(--kb-accent-strong); font-weight: 700; margin-left: 6px; }
 .work-sub.dim { flex-wrap: wrap; row-gap: 2px; }
+
+/* 人物の画像と一覧（v0.18.0） */
+.person-img { flex: none; border-radius: 50%; object-fit: cover; background: var(--kb-surface-2); display: block; }
+.person-initial { display: inline-flex; align-items: center; justify-content: center; color: var(--kb-accent-strong); background: var(--kb-accent-soft); font-weight: 700; }
+.person-hero { display: flex; align-items: center; gap: var(--kb-space-3); }
+.person-hero .hero-title { margin: 0; }
+.more-people { display: block; width: 100%; padding: var(--kb-space-3); text-align: center; }

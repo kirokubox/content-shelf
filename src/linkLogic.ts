@@ -25,6 +25,25 @@ export function resolveFranchise(franchises: Franchise[], title: string, now: st
   return { id: f.id, created: [f] };
 }
 
+export interface PersonCount {
+  person: Person;
+  /** その人がつながっている作品・公演の数（消した作品は数えない） */
+  works: number;
+}
+
+/** 人物一覧（v0.18.0）：作品の多い順 → 名前（読み仮名）の順。作品が0件の人も最後に並べる */
+export function peopleWithCounts(data: DataSet): PersonCount[] {
+  const counts = new Map<string, number>();
+  for (const w of data.works) {
+    if (w.deletedAt !== null) continue;
+    for (const id of new Set(w.personIds)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return data.people
+    .filter((p) => p.deletedAt === null)
+    .map((person) => ({ person, works: counts.get(person.id) ?? 0 }))
+    .sort((a, b) => b.works - a.works || (a.person.kana || a.person.name).localeCompare(b.person.kana || b.person.name, "ja"));
+}
+
 /** 人物の名前の並びから id を決める。無い人は新しく作る。同じ人は1回だけ */
 export function resolvePeople(people: Person[], names: string[], now: string): { ids: string[]; created: Person[] } {
   const ids: string[] = [];

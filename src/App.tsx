@@ -332,6 +332,7 @@ export default function App() {
               onBack={pop}
               onOpen={handlers.onOpen}
               onRename={(name) => commit({ people: [{ ...p, name, updatedAt: nowIso() }] })}
+              onSetImage={(imageUrl) => { void commit({ people: [{ ...p, imageUrl, updatedAt: nowIso() }] }).then((ok) => { if (ok) showToast(imageUrl ? "画像を入れました" : "画像を外しました"); }); }}
               onDelete={() => {
                 const now = nowIso();
                 const works = data.works.filter((w) => w.personIds.includes(p.id)).map((w) => ({ ...w, personIds: w.personIds.filter((x) => x !== p.id), updatedAt: now }));

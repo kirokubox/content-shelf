@@ -6,6 +6,7 @@ import { formatLogDate } from "./dateUtils";
 import { worksOfFranchise, worksOfPerson } from "./linkLogic";
 import { ownedGapSummary, positionLabel, progressKindOf } from "./progressLogic";
 import { MoreMenu, Screen } from "./Screen";
+import { PersonImg } from "./PersonImg";
 import type { DataSet, Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
 
@@ -108,7 +109,7 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
 }
 
 /** 人物：登録した作品・公演を横断して見る */
-export function PersonView({ data, person, onBack, onOpen, onRename, onDelete }: { data: DataSet; person: Person; onBack: () => void; onOpen: (w: Work) => void; onRename: (name: string) => void; onDelete: () => void }) {
+export function PersonView({ data, person, onBack, onOpen, onRename, onSetImage, onDelete }: { data: DataSet; person: Person; onBack: () => void; onOpen: (w: Work) => void; onRename: (name: string) => void; /** 画像のURLを変える（空で外す） */ onSetImage: (url: string | null) => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const works = worksOfPerson(data, person.id);
@@ -120,9 +121,17 @@ export function PersonView({ data, person, onBack, onOpen, onRename, onDelete }:
       onBack={onBack}
       actions={<MoreMenu open={menu} onToggle={() => setMenu(!menu)} items={[
         { label: "名前を変える", onClick: () => { const t = window.prompt("人物の名前", person.name); if (t && t.trim()) onRename(t.trim()); } },
+        { label: person.imageUrl ? "画像のURLを変える（空で外す）" : "画像のURLを入れる", onClick: () => { const t = window.prompt("人物の画像のURL（https://…）", person.imageUrl ?? ""); if (t !== null) onSetImage(t.trim() || null); } },
         { label: "人物を消す（作品は残る）", danger: true, onClick: onDelete },
       ]} />}
     >
+      <section className="card person-hero">
+        <PersonImg person={person} size={72} />
+        <div>
+          <h2 className="hero-title">{person.name}</h2>
+          <p className="muted small">作品・公演 {works.length}件</p>
+        </div>
+      </section>
       {works.length > 0 && (
         <section className="card">
           <dl className="summary-sub person-summary">

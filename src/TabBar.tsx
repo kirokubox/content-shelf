@@ -1,11 +1,12 @@
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 
-export type TabId = "home" | "continue" | "records" | "summary";
+export type TabId = "home" | "continue" | "purchase" | "records" | "summary";
 
 export const TABS: ReadonlyArray<{ id: TabId; label: string; icon: IconName }> = [
   { id: "home", label: "ホーム", icon: "home" },
   { id: "continue", label: "続き", icon: "play" },
+  { id: "purchase", label: "購入", icon: "shopping-bag" },
   { id: "records", label: "記録", icon: "book-open" },
   { id: "summary", label: "集計", icon: "bar-chart" },
 ];

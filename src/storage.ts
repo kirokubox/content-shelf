@@ -1,8 +1,8 @@
 // 保存：IndexedDB（家計簿と同じ方式。仕様181 §6.1）。画面は全件をメモリに持ち、変更をここへ書き込む。
 import { DB_NAME, DB_VERSION, MIGRATION_STORE, PHOTO_STORE, STORES } from "./constants.js";
 import { normalizeData } from "./dataOps.js";
-import { hasLegacyWorks, migrateV1ToV2 } from "./migrate.js";
-import type { MigrationReport } from "./migrate.js";
+import { hasLegacyWorks, hasV2Works, migrateV1ToV2, migrateV2ToV3 } from "./migrate.js";
+import type { MigrationReport, MigrationV3Report } from "./migrate.js";
 import type { DataSet, Franchise, Log, Person, StoredPhoto, Work } from "./types.js";
 
 type StoreName = (typeof STORES)[number];
@@ -62,13 +62,18 @@ function getAll<S extends StoreName>(db: IDBDatabase, name: S): Promise<RecordOf
 
 /** 移し替え前のデータ（丸ごと）。1回だけ保存して、あとで書き出せる */
 export interface MigrationBackupRecord {
-  id: "v1-before";
+  /** v1-before＝版1→版2の前（v0.16.0）、v2-before＝版2→版3の前（v0.17.0） */
+  id: "v1-before" | "v2-before";
   savedAt: string;
   data: { franchises: unknown[]; works: unknown[]; logs: unknown[]; people: unknown[] };
 }
 interface MigrationReportRecord {
   id: "v2-report";
   report: MigrationReport;
+}
+interface MigrationV3ReportRecord {
+  id: "v3-report";
+  report: MigrationV3Report;
 }
 
 function getOne<T>(db: IDBDatabase, store: string, key: string): Promise<T | undefined> {
@@ -81,6 +86,15 @@ function getOne<T>(db: IDBDatabase, store: string, key: string): Promise<T | und
 
 export async function getMigrationBackup(): Promise<MigrationBackupRecord | undefined> {
   return getOne<MigrationBackupRecord>(await openDb(), MIGRATION_STORE, "v1-before");
+}
+
+/** 版2→版3（v0.17.0）の移し替え前のデータ */
+export async function getMigrationV2Backup(): Promise<MigrationBackupRecord | undefined> {
+  return getOne<MigrationBackupRecord>(await openDb(), MIGRATION_STORE, "v2-before");
+}
+
+export async function getMigrationV3Report(): Promise<MigrationV3Report | undefined> {
+  return (await getOne<MigrationV3ReportRecord>(await openDb(), MIGRATION_STORE, "v3-report"))?.report;
 }
 
 export async function getMigrationReport(): Promise<MigrationReport | undefined> {
@@ -116,9 +130,34 @@ async function migrateIfNeeded(db: IDBDatabase): Promise<void> {
   await done(tx);
 }
 
+/**
+ * 版2の作品が残っていたら、版3の形へ移す（v0.17.0）。考え方は版1→版2と同じ：
+ * 移す前の丸ごとを1回だけ migrations の v2-before に残し、件数が合わなければ何も書かない
+ */
+async function migrateV3IfNeeded(db: IDBDatabase): Promise<void> {
+  const [franchises, works, logs, people] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs"), getAll(db, "people")]);
+  if (!hasV2Works(works)) return;
+  const photoIds = await new Promise<IDBValidKey[]>((resolve, reject) => {
+    const req = db.transaction(PHOTO_STORE, "readonly").objectStore(PHOTO_STORE).getAllKeys();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  const result = migrateV2ToV3({ franchises, works, logs, people, photos: photoIds });
+  if (!result.ok) throw new Error(result.error);
+  const hasBackup = (await getOne<MigrationBackupRecord>(db, MIGRATION_STORE, "v2-before")) !== undefined;
+  const tx = db.transaction(["works", "logs", MIGRATION_STORE], "readwrite");
+  const mig = tx.objectStore(MIGRATION_STORE);
+  if (!hasBackup) mig.put({ id: "v2-before", savedAt: new Date().toISOString(), data: { franchises, works, logs, people } } satisfies MigrationBackupRecord);
+  for (const w of result.data.works) tx.objectStore("works").put(w);
+  for (const l of result.data.logs) tx.objectStore("logs").put(l);
+  mig.put({ id: "v3-report", report: result.report } satisfies MigrationV3ReportRecord);
+  await done(tx);
+}
+
 export async function loadAll(): Promise<DataSet> {
   const db = await openDb();
   await migrateIfNeeded(db);
+  await migrateV3IfNeeded(db);
   const [franchises, works, logs, people] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs"), getAll(db, "people")]);
   return normalizeData({ franchises, works, logs, people });
 }

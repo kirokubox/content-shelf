@@ -1,5 +1,6 @@
 import { WEEKDAY_LABEL } from "./constants.js";
 import type { DatePrecision } from "./types.js";
+import { UNKNOWN_DATE } from "./types.js";
 
 /** 日付キー（YYYY-MM-DD）を端末の日付で作る。toISOString の先頭10文字は日本時間0〜9時にずれるので使わない */
 export function toDateKey(d: Date): string {
@@ -65,6 +66,7 @@ export function daysBetween(from: string, to: string): number {
 export function formatLogDate(key: string, precision: DatePrecision | undefined, today: string = todayKey(), short = false): string {
   const y = key.slice(0, 4);
   const sameYear = y === today.slice(0, 4);
+  if (precision === "unknown") return "日付不明";
   if (precision === "year") return `${y}年`;
   if (precision === "month") {
     const m = Number(key.slice(5, 7));
@@ -77,6 +79,7 @@ export function formatLogDate(key: string, precision: DatePrecision | undefined,
 /** 入力欄の値（日付・年月・年）を記録の日付キーにする。正しくなければ null */
 export function dateKeyFromInput(value: string, precision: DatePrecision): string | null {
   const v = value.trim().normalize("NFKC");
+  if (precision === "unknown") return UNKNOWN_DATE;
   if (precision === "year") return /^\d{4}$/.test(v) ? `${v}-01-01` : null;
   if (precision === "month") return /^\d{4}-\d{2}$/.test(v) ? `${v}-01` : null;
   return isDateKey(v) ? v : null;
@@ -84,6 +87,7 @@ export function dateKeyFromInput(value: string, precision: DatePrecision): strin
 
 /** 記録の日付キーを入力欄の値にする */
 export function inputFromDateKey(key: string, precision: DatePrecision): string {
+  if (precision === "unknown") return "";
   if (precision === "year") return key.slice(0, 4);
   if (precision === "month") return key.slice(0, 7);
   return key;

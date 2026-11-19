@@ -2,21 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { preparePhoto } from "./photos";
 import { deletePhoto, putPhotos } from "./storage";
 import { rememberPhoto, useCoverSrc } from "./useCover";
-import { ACCESS_LABEL, EDITION_CANDIDATES, EVENT_KIND_LABEL, MEDIUM_LABEL, PLATFORMS, PURCHASE_FORMAT_LABEL, PURCHASE_STAGE_LABEL, isStageEvent, WEEKDAY_LABEL, doneWord, hasOngoingStatus, hasVia, purchaseFormatChoices, workPeopleLabel, workStateChoices, workStateWord, workStatusWord } from "./constants";
-import { SEASON_WORD, addCour, courPeriodOf, defaultVia, formatCour } from "./courLogic";
+import { ACCESS_LABEL, DIGITAL_STORE_LABEL, EDITION_CANDIDATES, expectLabel, shapeText, EVENT_KIND_LABEL, MEDIUM_LABEL, PLATFORMS, PURCHASE_FORMAT_LABEL, PURCHASE_STAGE_LABEL, isStageEvent, WEEKDAY_LABEL, doneWord, hasOngoingStatus, hasVia, purchaseFormatChoices, workPeopleLabel, workStateChoices, workStateWord, workStatusWord } from "./constants";
+import { SEASON_WORD, addCour, courPeriodOf, defaultVia, formatCour, hasCourIn } from "./courLogic";
 import { viaFromPlace } from "./migrate";
-import { dateKeyFromInput, formatDate, formatDateShort, isDateKey, nowIso, weekdayOf } from "./dateUtils";
+import { dateKeyFromInput, formatDate, formatDateShort, inputFromDateKey, isDateKey, nowIso, weekdayOf } from "./dateUtils";
 import { DateField, PlaceField, SegRow } from "./formParts";
 import type { PrecisionChoice } from "./formParts";
 import { Icon } from "./Icon";
-import { progressKindOf, withAutoStatus } from "./progressLogic";
+import { addCurrentRerun, progressKindOf, withAutoStatus } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
 import { airedFromAnilist, courOf, workStateOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
-import type { Access, ClearLevel, Cour, DataSet, EventKind, StoredPhoto, Franchise, Log, Medium, PaperPlace, Person, PurchaseFormat, PurchaseStage, RangeMedium, Season, VolumeRange, Work, WorkStatus } from "./types";
-import { MEDIA, PURCHASE_STAGES, SEASONS } from "./types";
+import type { Access, ClearLevel, Cour, DataSet, DigitalStore, EventKind, FuzzyDate, StoredPhoto, Franchise, Log, Medium, PaperPlace, Person, PurchaseFormat, PurchaseStage, RangeMedium, Season, VolumeDate, VolumeRange, Work, WorkStatus } from "./types";
+import { DIGITAL_STORES, MEDIA, PURCHASE_STAGES, SEASONS, UNKNOWN_DATE } from "./types";
 import { emptyWork, newLog } from "./workFactory";
 
 /** 「1-5, 7」→ [{1,5},{7,7}] */
@@ -38,21 +38,20 @@ export function rangesText(ranges: VolumeRange[]): string {
   return ranges.map((r) => (r.from === r.to ? `${r.from}` : `${r.from}-${r.to}`)).join(", ");
 }
 
-const RANGE_MEDIUM_LABEL: Record<"paper" | "kindle", string> = { paper: "紙", kindle: "Kindle" };
-
-/** 詳細画面用：「1-5（紙）, 6-8（Kindle）」。形が不明な範囲は何も付けない */
+/** 詳細画面用：「1-5（紙）, 6-8（電子・Kindle）」。形が不明な範囲は何も付けない */
 export function rangesDetailText(ranges: VolumeRange[]): string {
-  return ranges.map((r) => `${r.from === r.to ? r.from : `${r.from}-${r.to}`}${r.medium ? `（${RANGE_MEDIUM_LABEL[r.medium]}）` : ""}`).join(", ");
+  return ranges.map((r) => `${r.from === r.to ? r.from : `${r.from}-${r.to}`}${r.medium ? `（${shapeText(r.medium, r.store)}）` : ""}`).join(", ");
 }
 
 interface RangeRow {
   from: string;
   to: string;
   medium: RangeMedium;
+  store: DigitalStore | null;
 }
 
 function toRows(ranges: VolumeRange[]): RangeRow[] {
-  return ranges.map((r) => ({ from: String(r.from), to: String(r.to), medium: r.medium ?? null }));
+  return ranges.map((r) => ({ from: String(r.from), to: String(r.to), medium: r.medium ?? null, store: r.store ?? null }));
 }
 
 /** 入力の行を巻の範囲にする。正しくなければ null */
@@ -63,16 +62,34 @@ function rowsToRanges(rows: RangeRow[]): VolumeRange[] | null {
     const from = Number(r.from.trim().normalize("NFKC"));
     const to = r.to.trim() ? Number(r.to.trim().normalize("NFKC")) : from;
     if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) return null;
-    out.push({ from, to, medium: r.medium });
+    out.push({ from, to, medium: r.medium, store: r.medium === "digital" ? r.store : null });
   }
   return out;
 }
 
-const ROW_MEDIA: { value: RangeMedium; label: string }[] = [
-  { value: null, label: "形は不明" },
-  { value: "paper", label: "紙" },
-  { value: "kindle", label: "Kindle" },
-];
+/** 範囲の形の選択肢の値（1段目と2段目を「digital:kindle」のように1つにまとめる） */
+function shapeValue(medium: RangeMedium, store: DigitalStore | null): string {
+  return medium === "digital" ? `digital:${store ?? ""}` : medium ?? "";
+}
+function parseShapeValue(v: string): { medium: RangeMedium; store: DigitalStore | null } {
+  if (v === "paper") return { medium: "paper", store: null };
+  if (v.startsWith("digital")) return { medium: "digital", store: DIGITAL_STORES.find((x) => x === v.slice(8)) ?? null };
+  return { medium: null, store: null };
+}
+
+/** 範囲ごとの形の選択（紙／電子の下に Kindle・ジャンプ＋・その他） */
+function ShapeSelect({ medium, store, label, onChange }: { medium: RangeMedium; store: DigitalStore | null; label: string; onChange: (medium: RangeMedium, store: DigitalStore | null) => void }) {
+  return (
+    <select className="text-input" value={shapeValue(medium, store)} onChange={(e) => { const x = parseShapeValue(e.target.value); onChange(x.medium, x.store); }} aria-label={label}>
+      <option value="">形は不明</option>
+      <option value="paper">紙</option>
+      <optgroup label="電子">
+        <option value="digital:">電子</option>
+        {DIGITAL_STORES.map((x) => <option key={x} value={`digital:${x}`}>電子・{DIGITAL_STORE_LABEL[x]}</option>)}
+      </optgroup>
+    </select>
+  );
+}
 
 /** 巻の範囲を、1行ずつ（何巻から・何巻まで・紙かKindleか）入れる */
 function RangeRows({ label, rows, onChange }: { label: string; rows: RangeRow[]; onChange: (rows: RangeRow[]) => void }) {
@@ -85,15 +102,13 @@ function RangeRows({ label, rows, onChange }: { label: string; rows: RangeRow[];
           <input className="text-input" inputMode="numeric" value={r.from} onChange={(e) => update(i, { from: e.target.value })} placeholder="から" aria-label={`${label}の開始の巻`} />
           <span className="range-sep">〜</span>
           <input className="text-input" inputMode="numeric" value={r.to} onChange={(e) => update(i, { to: e.target.value })} placeholder="まで" aria-label={`${label}の終わりの巻`} />
-          <select className="text-input" value={r.medium ?? ""} onChange={(e) => update(i, { medium: (e.target.value || null) as RangeMedium })} aria-label={`${label}の形`}>
-            {ROW_MEDIA.map((m) => <option key={String(m.value)} value={m.value ?? ""}>{m.label}</option>)}
-          </select>
+          <ShapeSelect medium={r.medium} store={r.store} label={`${label}の形`} onChange={(medium, store) => update(i, { medium, store })} />
           <button type="button" className="icon-btn" aria-label="この範囲を消す" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
             <Icon name="close" size={16} />
           </button>
         </div>
       ))}
-      <button type="button" className="secondary-btn" onClick={() => onChange([...rows, { from: "", to: "", medium: rows[rows.length - 1]?.medium ?? null }])}>
+      <button type="button" className="secondary-btn" onClick={() => onChange([...rows, { from: "", to: "", medium: rows[rows.length - 1]?.medium ?? null, store: rows[rows.length - 1]?.store ?? null }])}>
         <Icon name="plus" size={16} /> 範囲を足す
       </button>
     </div>
@@ -159,13 +174,73 @@ const CLEAR_CHOICES: { value: ClearLevel; label: string }[] = [
 const STAGE_CHOICES: { value: PurchaseStage; label: string }[] = PURCHASE_STAGES.map((st) => ({ value: st, label: PURCHASE_STAGE_LABEL[st] }));
 /** 読む・見る手段を持てる種類と、その選択肢 */
 function accessChoices(medium: Medium): { value: Access; label: string }[] | null {
-  if (medium === "manga") return [{ value: null, label: "なし" }, { value: "jump_plus", label: ACCESS_LABEL.jump_plus }];
+  // マンガは紙／電子（2段目：Kindle・ジャンプ＋・その他）／漫喫。漫喫は購入ではないので、購入の段階には影響しない
+  if (medium === "manga") return [{ value: null, label: "なし" }, { value: "paper", label: ACCESS_LABEL.paper }, { value: "digital", label: ACCESS_LABEL.digital }, { value: "manga_cafe", label: ACCESS_LABEL.manga_cafe }];
   if (medium === "anime" || medium === "drama" || medium === "movie" || medium === "video") return [{ value: null, label: "なし" }, { value: "streaming", label: ACCESS_LABEL.streaming }];
   return null;
 }
 /** 購入の欄を出す種類 */
 function hasPurchase(w: Pick<Work, "medium" | "eventKind">): boolean {
   return w.medium === "manga" || w.medium === "novel" || w.medium === "game" || w.medium === "video" || isStageEvent(w);
+}
+
+interface VolDateRow {
+  volume: string;
+  text: string;
+  precision: "day" | "month" | "year";
+}
+
+/** マンガの巻ごとの楽しみの日（予約中の巻・買う予定の巻の発売日） */
+function VolumeDateRows({ rows, today, onChange }: { rows: VolDateRow[]; today: string; onChange: (rows: VolDateRow[]) => void }) {
+  const update = (i: number, patch: Partial<VolDateRow>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="field">
+      <span className="field-label">巻ごとの発売日（楽しみの日）</span>
+      {rows.map((r, i) => (
+        <div className="range-row" key={i}>
+          <input className="text-input vol-input" inputMode="numeric" value={r.volume} onChange={(e) => update(i, { volume: e.target.value })} placeholder="巻" aria-label="何巻" />
+          <span className="range-sep">巻</span>
+          <select className="text-input" value={r.precision} onChange={(e) => {
+            const p = e.target.value as VolDateRow["precision"];
+            const y = r.text.slice(0, 4) || today.slice(0, 4);
+            const m = r.text.length >= 7 ? r.text.slice(0, 7) : `${y}-${today.slice(5, 7)}`;
+            update(i, { precision: p, text: p === "year" ? y : p === "month" ? m : r.text.length === 10 ? r.text : `${m}-01` });
+          }} aria-label="日付の細かさ">
+            <option value="day">日</option>
+            <option value="month">月</option>
+            <option value="year">年</option>
+          </select>
+          {r.precision === "day" && <input className="text-input" type="date" value={r.text} onChange={(e) => update(i, { text: e.target.value })} aria-label={`${r.volume}巻の発売日`} />}
+          {r.precision === "month" && <input className="text-input" type="month" value={r.text} onChange={(e) => update(i, { text: e.target.value })} aria-label={`${r.volume}巻の発売月`} />}
+          {r.precision === "year" && <input className="text-input" inputMode="numeric" value={r.text} onChange={(e) => update(i, { text: e.target.value })} placeholder="2027" aria-label={`${r.volume}巻の発売年`} />}
+          <button type="button" className="icon-btn" aria-label="この発売日を消す" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="secondary-btn" onClick={() => onChange([...rows, { volume: "", text: "", precision: "day" }])}>
+        <Icon name="plus" size={16} /> 発売日を足す
+      </button>
+    </div>
+  );
+}
+
+/** 読む・見る手段（マンガは 紙／電子（Kindle・ジャンプ＋・その他）／漫喫） */
+function AccessFields({ w, set }: { w: Work; set: (patch: Partial<Work>) => void }) {
+  const choices = accessChoices(w.medium);
+  if (!choices) return null;
+  return (
+    <>
+      <SegRow label={w.medium === "manga" ? "読む手段" : "見る手段"} value={w.access} choices={choices} onChange={(v) => set({ access: v, accessStore: v === "digital" ? w.accessStore : null })} />
+      {w.access === "digital" && (
+        <SegRow label="電子" value={w.accessStore} choices={DIGITAL_STORES.map((x) => ({ value: x as DigitalStore | null, label: DIGITAL_STORE_LABEL[x] }))} onChange={(x) => set({ accessStore: x })} clearValue={null} />
+      )}
+    </>
+  );
+}
+
+function isReadingWord(medium: Medium): boolean {
+  return medium === "manga" || medium === "novel";
 }
 
 interface Props {
@@ -180,7 +255,8 @@ interface Props {
   /** 「種類を変える」に出す種類（使う種類）。今の種類は、外してあっても出す */
   media: Medium[];
   onCancel: () => void;
-  onSave: (work: Work, firstLog: Log | null, created: { franchises: Franchise[]; people: Person[] }) => void;
+  /** firstLogs：新規で付ける記録（見た記録・前に見終わっていた「済」の記録） */
+  onSave: (work: Work, firstLogs: Log[], created: { franchises: Franchise[]; people: Person[] }) => void;
 }
 
 export function WorkEditor({ work, initialMedium, today, data, pick, media, onCancel, onSave }: Props) {
@@ -196,6 +272,13 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
   const [rangeRows, setRangeRows] = useState<RangeRow[]>(() => toRows(w.owned?.ranges ?? []));
   const [reservedRows, setReservedRows] = useState<RangeRow[]>(() => toRows(w.owned?.reserved ?? []));
   const [skipDraft, setSkipDraft] = useState("");
+  // 楽しみの日（発売日・公開日・開催日・放送開始日）
+  const [expectText, setExpectText] = useState(() => (w.expect ? inputFromDateKey(w.expect.date, w.expect.precision) : ""));
+  const [expectPrecision, setExpectPrecision] = useState<PrecisionChoice>(() => w.expect?.precision ?? "none");
+  // マンガの巻ごとの楽しみの日
+  const [volDateRows, setVolDateRows] = useState<VolDateRow[]>(() => (w.owned?.volumeDates ?? []).map((v) => ({ volume: String(v.volume), text: inputFromDateKey(v.date.date, v.date.precision), precision: v.date.precision })));
+  // 新規：前に見終わってる・読み終わってる（2周目から登録する）
+  const [seenBefore, setSeenBefore] = useState(false);
   // 新規の映画・小説などは、その場で「見た記録」も付けられる
   const [viewDate, setViewDate] = useState(today);
   const [viewPrecision, setViewPrecision] = useState<PrecisionChoice>("day");
@@ -271,9 +354,10 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
         ...cur,
         medium: m,
         eventKind: m === "live" ? cur.eventKind ?? "live" : null,
-        owned: m === "manga" ? cur.owned ?? { known: false, ranges: [], reserved: [], place: null } : null,
+        owned: m === "manga" ? cur.owned ?? { known: false, ranges: [], reserved: [], place: null, volumeDates: [] } : null,
         purchase: purchaseFormatChoices(m).includes(cur.purchase.format as PurchaseFormat) ? cur.purchase : { ...cur.purchase, format: null },
         access: accessChoices(m)?.some((c) => c.value === cur.access) ? cur.access : null,
+        accessStore: accessChoices(m)?.some((c) => c.value === cur.access) ? cur.accessStore : null,
         schedule: m === "anime" || m === "drama" || m === "magazine" ? cur.schedule : null,
         status: progressKindOf({ medium: m }) === "none" && !hasOngoingStatus(m) && (cur.status === "active" || cur.status === "paused") ? "done" : cur.status,
       }),
@@ -301,6 +385,30 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
       if (!parsedReserved) return setError("予約済の巻は、1以上の整数で「から」「まで」を入れてください");
       reserved = parsedReserved;
     }
+    // 楽しみの日
+    let expect: FuzzyDate | null = null;
+    if (expectPrecision !== "none" && expectPrecision !== "unknown") {
+      const d = dateKeyFromInput(expectText, expectPrecision);
+      if (!d) return setError(`${expectLabel(w.medium)}を入れてください（年だけは4桁）`);
+      expect = { date: d, precision: expectPrecision };
+    }
+    let volumeDates: VolumeDate[] = [];
+    if (w.owned) {
+      for (const r of volDateRows) {
+        if (!r.volume.trim() && !r.text.trim()) continue;
+        const vol = Number(r.volume.trim().normalize("NFKC"));
+        const d = dateKeyFromInput(r.text, r.precision);
+        if (!Number.isInteger(vol) || vol < 1 || !d) return setError("巻ごとの発売日は、巻（1以上の整数）と日付を入れてください");
+        if (volumeDates.some((v) => v.volume === vol)) return setError(`${vol}巻の発売日が2つあります`);
+        volumeDates.push({ volume: vol, date: { date: d, precision: r.precision } });
+      }
+      volumeDates = volumeDates.sort((a, b) => a.volume - b.volume);
+    }
+    // 予約中の巻と持っている巻は重ねない
+    const ownedSet = new Set<number>();
+    for (const r of ranges) for (let n = r.from; n <= r.to && n - r.from < 5000; n += 1) ownedSet.add(n);
+    const overlap = reserved.find((r) => { for (let n = r.from; n <= r.to && n - r.from < 5000; n += 1) if (ownedSet.has(n)) return true; return false; });
+    if (overlap) return setError("予約済の巻と所持の巻が重なっています。買った巻は所持の巻だけに入れてください");
     const now = nowIso();
     const fr = resolveFranchise(data.franchises, franchiseText, now);
     const pp = resolvePeople(data.people, personDraft.trim() ? [...people, personDraft] : people, now);
@@ -312,12 +420,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
       title: w.title.trim(),
       kana: w.kana.trim(),
       partLabel: w.partLabel.trim(),
-      purchase: { stage: w.owned && ranges.length > 0 && w.purchase.stage === "none" ? "owned" : w.purchase.stage, format: w.purchase.format },
+      purchase: { stage: w.owned && ranges.length > 0 && w.purchase.stage === "none" ? "owned" : w.purchase.stage, format: w.purchase.format, store: w.purchase.format === "digital" ? w.purchase.store : null },
+      accessStore: w.access === "digital" ? w.accessStore : null,
+      expect,
+      rounds: isNew && seenBefore ? Math.max(2, w.rounds) : w.rounds,
       progress: kind === "episode" || kind === "volume" ? progress : null,
       total: kind === "episode" || kind === "volume" ? total : null,
       latestKnown: kind === "episode" && scheduleOn ? null : kind === "episode" || kind === "volume" ? latest : null,
       schedule: w.schedule ? { ...w.schedule, firstNumber: kind === "issue" ? 1 : (firstNumber as number) } : null,
-      owned: w.owned ? { ...w.owned, ranges, reserved, known: w.owned.known || ranges.length > 0 } : null,
+      owned: w.owned ? { ...w.owned, ranges, reserved, volumeDates, known: w.owned.known || ranges.length > 0 } : null,
       platform: w.medium === "game" ? w.platform.trim() : "",
       clearLevel: w.medium === "game" ? w.clearLevel : null,
       shelfPlace: w.medium === "novel" ? w.shelfPlace : null,
@@ -328,6 +439,12 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
     if (next.status === "done" && !next.completedAt) next = { ...next, completedAt: now };
     if (next.status !== "done") next = { ...next, completedAt: null };
     next = withAutoStatus(next, now);
+    // 編集で今期の再放送のクールを足したら、詳細の「今期の再放送を足す」と同じく扱う（済なら2周目から）
+    const period = courPeriodOf(today);
+    if (!isNew && work && !hasCourIn(work, period, "rerun") && hasCourIn(next, period, "rerun")) next = addCurrentRerun(next, today, now);
+    const firstLogs: Log[] = [];
+    // 前に見終わってる・読み終わってる：日付不明の「済」の記録を1件付けて、2周目から始める
+    if (isNew && seenBefore) firstLogs.push(newLog({ workId: next.id, kind: "view", date: UNKNOWN_DATE, datePrecision: "unknown", note: "", source: "" }, now));
     let firstLog: Log | null = null;
     if (isNew && kind === "none" && next.status === "done") {
       if (viewPrecision !== "none" || viewNote.trim() || viewRating) {
@@ -352,7 +469,8 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
       return setError("写真を保存できませんでした（端末の空きが足りないかもしれません）");
     }
     setSaving(false);
-    onSave(next, firstLog, { franchises: fr.created, people: pp.created });
+    if (firstLog) firstLogs.push(firstLog);
+    onSave(next, firstLogs, { franchises: fr.created, people: pp.created });
   };
 
   const statusChoices: WorkStatus[] = kind === "none" && !hasOngoingStatus(w.medium) ? ["done", "wish"] : ["active", "wish", "paused", "done"];
@@ -556,7 +674,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
             </label>
           )}
           <SegRow label="購入" value={w.purchase.stage} choices={STAGE_CHOICES} onChange={(st) => set({ purchase: { ...w.purchase, stage: st } })} />
-          {w.purchase.stage !== "none" && purchaseFormatChoices(w.medium).length > 0 && (
+          {w.purchase.stage !== "none" && w.medium === "manga" && (
+            <>
+              <SegRow label="形" value={w.purchase.format} choices={[{ value: "paper" as PurchaseFormat, label: "紙" }, { value: "digital" as PurchaseFormat, label: "電子" }]} onChange={(f) => set({ purchase: { ...w.purchase, format: f, store: f === "digital" ? w.purchase.store : null } })} clearValue={null} />
+              {w.purchase.format === "digital" && (
+                <SegRow label="電子" value={w.purchase.store} choices={DIGITAL_STORES.map((x) => ({ value: x as DigitalStore | null, label: DIGITAL_STORE_LABEL[x] }))} onChange={(x) => set({ purchase: { ...w.purchase, store: x } })} clearValue={null} />
+              )}
+            </>
+          )}
+          {w.purchase.stage !== "none" && w.medium !== "manga" && purchaseFormatChoices(w.medium).length > 0 && (
             <label className="field">
               <span className="field-label">形</span>
               <select className="text-input" value={w.purchase.format ?? ""} onChange={(e) => set({ purchase: { ...w.purchase, format: (e.target.value || null) as PurchaseFormat | null } })}>
@@ -567,6 +693,7 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
           )}
           {w.owned && <RangeRows label="所持の巻" rows={rangeRows} onChange={setRangeRows} />}
           {w.owned && <RangeRows label="予約済の巻" rows={reservedRows} onChange={setReservedRows} />}
+          {w.owned && <VolumeDateRows rows={volDateRows} today={today} onChange={setVolDateRows} />}
           {w.owned && w.purchase.stage === "owned" && (w.purchase.format === "paper" || rangeRows.some((r) => r.medium === "paper")) && (
             <SegRow label="置き場所" value={w.owned.place} choices={PLACES} onChange={(v) => set({ owned: { ...w.owned!, place: v } })} />
           )}
@@ -582,12 +709,37 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
               </datalist>
             </label>
           )}
-          {accessChoices(w.medium) && <SegRow label="手段" value={w.access} choices={accessChoices(w.medium)!} onChange={(v) => set({ access: v })} />}
+          {accessChoices(w.medium) && <AccessFields w={w} set={set} />}
         </div>
       )}
       {!hasPurchase(w) && accessChoices(w.medium) && (
         <div className="form card compact">
-          <SegRow label="手段" value={w.access} choices={accessChoices(w.medium)!} onChange={(v) => set({ access: v })} />
+          <AccessFields w={w} set={set} />
+        </div>
+      )}
+
+      {/* 楽しみの日（発売日・公開日・開催日・放送開始日）。アニメ・ドラマで放送予定があるときは、放送予定の初回を使う */}
+      {w.medium !== "magazine" && (
+        <div className="form card compact">
+          {(w.medium === "anime" || w.medium === "drama") && scheduleOn ? (
+            <p className="field-hint">{expectLabel(w.medium)}は、放送予定の「数え始める回の放送日」を使います。</p>
+          ) : (
+            <DateField label={w.medium === "manga" ? "楽しみの日（作品全体）" : expectLabel(w.medium)} value={expectText} precision={expectPrecision} today={today} allowUnknown allowFuture noneLabel="なし" onChange={(v, p) => { setExpectText(v); setExpectPrecision(p); }} />
+          )}
+          {w.medium === "manga" && <p className="field-hint">新刊の発売日は、購入の欄の「巻ごとの発売日」に入れます。</p>}
+        </div>
+      )}
+
+      {/* 新規：2周目から登録する */}
+      {isNew && w.medium !== "live" && w.medium !== "magazine" && (
+        <div className="form card compact">
+          <label className="toggle-row">
+            <span className="toggle-text">
+              {isReadingWord(w.medium) ? "前に読み終わってる" : w.medium === "game" ? "前にクリアしてる" : "前に見終わってる"}
+              <span className="field-hint">日付不明の「済」の記録を1件付けて、2周目から始めます（進み具合は0から）</span>
+            </span>
+            <input type="checkbox" checked={seenBefore} onChange={(e) => setSeenBefore(e.target.checked)} />
+          </label>
         </div>
       )}
 

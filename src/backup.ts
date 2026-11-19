@@ -1,8 +1,8 @@
 // バックアップの保存・検証・追加の差分。画面の言葉は「バックアップを保存／バックアップから戻す／バックアップから追加」
 import { isDateKey } from "./dateUtils.js";
 import { DATA_VERSION } from "./constants.js";
-import { migrateV1ToV2 } from "./migrate.js";
-import type { MigrationReport } from "./migrate.js";
+import { migrateV1ToV2, migrateV2ToV3 } from "./migrate.js";
+import type { MigrationReport, MigrationV3Report } from "./migrate.js";
 import { LOG_VIAS, MEDIA, WORK_STATES, WORK_STATUSES } from "./types.js";
 import { normalizeData } from "./dataOps.js";
 import type { BackupFile, DataSet, Franchise, Log, Person, Work } from "./types.js";
@@ -70,7 +70,7 @@ function checkFranchise(r: unknown): r is Franchise {
 }
 
 export type ParseResult =
-  | { ok: true; data: DataSet; exportedAt: string; /** 版1から移し替えたときの結果 */ migration: MigrationReport | null }
+  | { ok: true; data: DataSet; exportedAt: string; /** 版1から移し替えたときの結果 */ migration: MigrationReport | null; /** 版2から移し替えたときの結果（v0.17.0） */ migrationV3?: MigrationV3Report | null }
   | { ok: false; error: string };
 
 /** 読み込んだ文字列をバックアップとして検証する。1件でも形が崩れていたら何も読まない */
@@ -82,8 +82,9 @@ export function parseBackup(text: string): ParseResult {
     return { ok: false, error: "ファイルを読めませんでした（形式が違います）" };
   }
   if (!isObj(json) || json.app !== "content-shelf") return { ok: false, error: "コンテンツ棚のバックアップではありません" };
-  if (json.version !== 1 && json.version !== 2) return { ok: false, error: "このバージョンのバックアップには対応していません" };
-  const isV2 = json.version === 2;
+  if (json.version !== 1 && json.version !== 2 && json.version !== 3) return { ok: false, error: "このバージョンのバックアップには対応していません" };
+  // 版2と版3は、作品の検査が同じ（版3で足した項目は無くても補える）
+  const isV2 = json.version === 2 || json.version === 3;
   const { franchises, works, logs } = json;
   if (!Array.isArray(franchises) || !Array.isArray(works) || !Array.isArray(logs)) return { ok: false, error: "バックアップの中身が足りません" };
   const badWork = works.findIndex((w) => !(isV2 ? checkWorkV2(w) : checkWork(w)));
@@ -98,7 +99,14 @@ export function parseBackup(text: string): ParseResult {
   const badP = people.findIndex((p) => !checkPerson(p));
   if (badP >= 0) return { ok: false, error: `人物の${badP + 1}件目の形が正しくありません` };
   const exportedAt = isStr(json.exportedAt) ? json.exportedAt : "";
-  if (isV2) return { ok: true, data: normalizeData({ franchises, works, logs, people } as DataSet), exportedAt, migration: null };
+  if (json.version === 3) return { ok: true, data: normalizeData({ franchises, works, logs, people } as DataSet), exportedAt, migration: null, migrationV3: null };
+  if (json.version === 2) {
+    // 版2：持っている形・読む手段を2段にしてから取り込む
+    const photos = Array.isArray(json.photos) ? json.photos : [];
+    const m3 = migrateV2ToV3({ franchises, works, logs, people, photos });
+    if (!m3.ok) return { ok: false, error: m3.error };
+    return { ok: true, data: m3.data, exportedAt, migration: null, migrationV3: m3.report };
+  }
   // 版1：新しい形へ移し替えてから取り込む（件数が合わなければ何も読まない）
   const photos = Array.isArray(json.photos) ? json.photos : [];
   const m = migrateV1ToV2({ franchises, works, logs, people, photos });

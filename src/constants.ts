@@ -1,7 +1,7 @@
-import type { Access, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, Work, WorkState, WorkStatus } from "./types.js";
+import type { Access, DigitalStore, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, RangeMedium, Work, WorkState, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.16.0";
+export const APP_VERSION = "0.17.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 4;
@@ -9,8 +9,8 @@ export const DB_VERSION = 4;
 export const STORES = ["franchises", "works", "logs", "people"] as const;
 /** 移し替え前のデータと移し替えの結果を置く（v0.16.0） */
 export const MIGRATION_STORE = "migrations";
-/** バックアップ・データの形の最新の版（版1は移し替えてから使う） */
-export const DATA_VERSION = 2;
+/** バックアップ・データの形の最新の版（版1・版2は移し替えてから使う。版3＝v0.17.0） */
+export const DATA_VERSION = 3;
 
 export const MEDIUM_LABEL: Record<Medium, string> = {
   anime: "アニメ",
@@ -142,7 +142,7 @@ export const CLEAR_LABEL = { clear: "クリア", complete: "やりこみ", partw
 /** 購入の形の名前 */
 export const PURCHASE_FORMAT_LABEL: Record<PurchaseFormat, string> = {
   paper: "紙",
-  kindle: "Kindle",
+  digital: "電子",
   tankobon: "単行本",
   bunko: "文庫",
   tankobon_bunko: "単行本と文庫",
@@ -155,14 +155,48 @@ export const PURCHASE_FORMAT_LABEL: Record<PurchaseFormat, string> = {
 /** ハードの候補（自由入力もできる） */
 export const PLATFORMS = ["Switch", "スマホ", "PS5", "PS4", "PC", "3DS", "DS", "Wii", "PS2", "ゲームボーイ"];
 
-export const PURCHASE_STAGE_LABEL: Record<PurchaseStage, string> = { none: "未所持", planned: "購入予定", reserved: "予約済", owned: "所持" };
-export const ACCESS_LABEL: Record<Exclude<Access, null>, string> = { jump_plus: "ジャンプ＋", streaming: "配信" };
+/** 購入の段階の名前（v0.17.0 で 未所持／購入予定／予約済／所持 から変えた） */
+export const PURCHASE_STAGE_LABEL: Record<PurchaseStage, string> = { none: "持ってない", planned: "買う予定", reserved: "予約済み", owned: "持ってる" };
+/** 読む・見る手段の名前 */
+export const ACCESS_LABEL: Record<Exclude<Access, null>, string> = { paper: "紙", digital: "電子", manga_cafe: "漫喫", streaming: "配信" };
+/** 電子のときの2段目の名前 */
+export const DIGITAL_STORE_LABEL: Record<DigitalStore, string> = { kindle: "Kindle", jump_plus: "ジャンプ＋", other: "その他" };
+
+/** 「紙」「電子・Kindle」「電子」の形（巻の範囲・購入の形・読む手段で共通） */
+export function shapeText(medium: RangeMedium | "manga_cafe" | "streaming", store: DigitalStore | null | undefined): string {
+  if (medium === null) return "";
+  if (medium === "paper") return "紙";
+  if (medium === "manga_cafe") return "漫喫";
+  if (medium === "streaming") return "配信";
+  return store ? `電子・${DIGITAL_STORE_LABEL[store]}` : "電子";
+}
+
+/** 購入の形の名前（マンガの電子は2段目まで） */
+export function purchaseFormatText(format: PurchaseFormat | null, store: DigitalStore | null): string {
+  if (!format) return "";
+  if (format === "digital") return shapeText("digital", store);
+  return PURCHASE_FORMAT_LABEL[format];
+}
+
+/** 読む・見る手段の名前（電子は2段目まで） */
+export function accessText(access: Access, store: DigitalStore | null): string {
+  if (!access) return "";
+  return access === "digital" ? shapeText("digital", store) : ACCESS_LABEL[access];
+}
+
+/** 楽しみの日の、種類ごとの名前（発売日・公開日・開催日・放送開始日） */
+export function expectLabel(medium: Medium): string {
+  if (medium === "anime" || medium === "drama") return "放送開始日";
+  if (medium === "movie") return "公開日";
+  if (medium === "live") return "開催日";
+  return "発売日";
+}
 /** 版の候補（自由入力もできる） */
 export const EDITION_CANDIDATES = ["限定版", "通常版", "初回限定版", "新装版", "完全版"];
 
 /** 購入の形の選択肢（種類ごと）。出さない種類は空 */
 export function purchaseFormatChoices(medium: Medium): PurchaseFormat[] {
-  if (medium === "manga") return ["paper", "kindle"];
+  if (medium === "manga") return ["paper", "digital"];
   if (medium === "novel") return ["tankobon", "bunko", "tankobon_bunko", "ebook"];
   if (medium === "video" || medium === "live") return ["bluray", "dvd"];
   if (medium === "game") return ["package", "download"];

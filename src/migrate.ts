@@ -114,10 +114,13 @@ function emptyReport(at: string, before: MigrationCounts): MigrationReport {
   };
 }
 
-function toRanges(v: unknown, medium: RangeMedium): VolumeRange[] {
+/** 版1の範囲に、作品ごとの形を写す。版1の kindle は、このあと normalizeWork が 電子＋Kindle にする */
+function toRanges(v: unknown, medium: LegacyRangeMedium): VolumeRange[] {
   if (!Array.isArray(v)) return [];
-  return (v as Rec[]).filter((r) => typeof r?.from === "number" && typeof r?.to === "number").map((r) => ({ from: r.from as number, to: r.to as number, medium }));
+  return (v as Rec[]).filter((r) => typeof r?.from === "number" && typeof r?.to === "number").map((r) => ({ from: r.from as number, to: r.to as number, medium: medium as unknown as RangeMedium }));
 }
+
+type LegacyRangeMedium = "paper" | "kindle" | null;
 
 /** 版1 → 版2。件数が合わないときは失敗する（何も書かせない） */
 export function migrateV1ToV2(input: LegacyData, now: string = new Date().toISOString()): MigrationResult {
@@ -185,11 +188,11 @@ export function migrateV1ToV2(input: LegacyData, now: string = new Date().toISOS
     // 購入・読む見る手段
     const owned = raw.owned && typeof raw.owned === "object" ? (raw.owned as Rec) : null;
     const ownedMedium = owned ? owned.medium : null;
-    const rangeMedium: RangeMedium = ownedMedium === "paper" || ownedMedium === "kindle" ? ownedMedium : null;
+    const rangeMedium: LegacyRangeMedium = ownedMedium === "paper" || ownedMedium === "kindle" ? ownedMedium : null;
     const ranges = owned ? toRanges(owned.ranges, rangeMedium) : [];
-    let access: Access = ownedMedium === "jump_plus" ? "jump_plus" : null;
+    let access: Access | "jump_plus" = ownedMedium === "jump_plus" ? "jump_plus" : null;
     let stage: PurchaseStage = "none";
-    const formats: PurchaseFormat[] = [];
+    const formats: (PurchaseFormat | "kindle")[] = [];
     if (ranges.length > 0) {
       stage = "owned";
       if (rangeMedium) formats.push(rangeMedium);
@@ -241,7 +244,9 @@ export function migrateV1ToV2(input: LegacyData, now: string = new Date().toISOS
   for (const w of works) {
     report.workState[w.workState ?? "unknown"] += 1;
     report.purchase[w.purchase.stage] += 1;
-    if (w.access) report.access[w.access] += 1;
+    // v0.17.0 以降、ジャンプ＋は 電子＋ジャンプ＋ として入る（normalizeWork）
+    if (w.access === "digital" && w.accessStore === "jump_plus") report.access.jump_plus += 1;
+    if (w.access === "streaming") report.access.streaming += 1;
   }
   for (const l of logs) if (l.via && (LOG_VIAS as readonly string[]).includes(l.via)) report.via[l.via] += 1;
 
@@ -263,6 +268,88 @@ export function describeMigration(r: MigrationReport): string[] {
     `視聴手段：放送 ${r.via.broadcast}・再放送 ${r.via.rerun}・配信 ${r.via.streaming}・円盤 ${r.via.disc}・録画 ${r.via.recording}・劇場／会場 ${r.via.venue}`,
     `購入：未所持 ${r.purchase.none}・購入予定 ${r.purchase.planned}・予約済 ${r.purchase.reserved}・所持 ${r.purchase.owned}`,
     `読む・見る手段：ジャンプ＋ ${r.access.jump_plus}・配信 ${r.access.streaming}`,
+    `自動で判断できなかった作品：${r.manual.length}件`,
+  ];
+  for (const m of r.manual) lines.push(`  ・${m.title || "（題名なし）"}：${m.reason}`);
+  return lines;
+}
+
+// ---- 版2 → 版3（v0.17.0）：持っている形・読む手段を2段にする、楽しみの日・巻ごとの楽しみの日・ホームの積読を足す ----
+
+/** 版2の作品か（版3の作品は expect の項目を必ず持つ。版1は workState を持たない） */
+export function isV2Work(w: unknown): boolean {
+  return typeof w === "object" && w !== null && "workState" in w && !("expect" in w);
+}
+
+export function hasV2Works(works: readonly unknown[]): boolean {
+  return works.some(isV2Work);
+}
+
+export interface MigrationV3Report {
+  at: string;
+  before: MigrationCounts;
+  after: MigrationCounts;
+  /** 巻の範囲の Kindle → 電子・Kindle（作品数） */
+  rangeKindle: number;
+  /** 巻の範囲の紙（作品数。そのまま） */
+  rangePaper: number;
+  /** 購入の形の Kindle → 電子・Kindle */
+  formatKindle: number;
+  /** 読む手段のジャンプ＋ → 電子・ジャンプ＋ */
+  accessJumpPlus: number;
+  /** 読む手段の配信（そのまま） */
+  accessStreaming: number;
+  manual: ManualItem[];
+}
+
+export type MigrationV3Result = { ok: true; data: DataSet; report: MigrationV3Report } | { ok: false; error: string };
+
+/** 版2 → 版3。元のデータは変えない。件数が合わないときは失敗する（何も書かせない） */
+export function migrateV2ToV3(input: LegacyData, now: string = new Date().toISOString()): MigrationV3Result {
+  const photos = input.photos ?? [];
+  const before: MigrationCounts = { works: input.works.length, logs: input.logs.length, people: input.people.length, franchises: input.franchises.length, photos: photos.length };
+  const report: MigrationV3Report = { at: now, before, after: before, rangeKindle: 0, rangePaper: 0, formatKindle: 0, accessJumpPlus: 0, accessStreaming: 0, manual: [] };
+  const works: Work[] = [];
+  for (const raw of input.works as Rec[]) {
+    if (isLegacyWork(raw)) return { ok: false, error: "版1の作品が混ざっています。先に版1から移し替えてください。" };
+    const owned = raw.owned && typeof raw.owned === "object" ? (raw.owned as Rec) : null;
+    const ranges = owned && Array.isArray(owned.ranges) ? (owned.ranges as Rec[]) : [];
+    const reserved = owned && Array.isArray(owned.reserved) ? (owned.reserved as Rec[]) : [];
+    const all = [...ranges, ...reserved];
+    if (all.some((r) => r?.medium === "kindle")) report.rangeKindle += 1;
+    if (all.some((r) => r?.medium === "paper")) report.rangePaper += 1;
+    const purchase = (raw.purchase ?? {}) as Rec;
+    if (purchase.format === "kindle") report.formatKindle += 1;
+    if (raw.access === "jump_plus") report.accessJumpPlus += 1;
+    if (raw.access === "streaming") report.accessStreaming += 1;
+    const w = normalizeWork(raw as unknown as Work);
+    // 紙と電子が範囲ごとに混ざっていて、作品の購入の形が電子・紙のどちらか1つだけのものは、どちらが今の買い方か分からない
+    const shapes = new Set((w.owned?.ranges ?? []).map((r) => r.medium).filter(Boolean));
+    if (shapes.size > 1 && (w.purchase.format === "paper" || w.purchase.format === "digital")) {
+      report.manual.push({ workId: w.id, title: w.title, reason: `持っている巻が紙と電子に分かれています。購入の形は「${w.purchase.format === "paper" ? "紙" : "電子"}」のままにしました（これから買う巻の形として使います）` });
+    }
+    // ジャンプ＋で読んでいて、購入の形も電子（Kindleなど）のものは、読む手段と買う形が別になる
+    if (w.access === "digital" && w.accessStore === "jump_plus" && w.purchase.format === "digital") {
+      report.manual.push({ workId: w.id, title: w.title, reason: "読む手段（電子・ジャンプ＋）と購入の形（電子）の両方がありました。どちらも残しています" });
+    }
+    works.push(w);
+  }
+  const logs = (input.logs as Rec[]).map((l) => normalizeLog(l as unknown as Log));
+  const data: DataSet = { franchises: input.franchises as DataSet["franchises"], works, logs, people: input.people as DataSet["people"] };
+  report.after = { works: works.length, logs: logs.length, people: data.people.length, franchises: data.franchises.length, photos: photos.length };
+  for (const k of ["works", "logs", "people", "franchises", "photos"] as const) {
+    if (report.before[k] !== report.after[k]) return { ok: false, error: `移し替えの前後で件数が合いませんでした（${k}：${report.before[k]}件 → ${report.after[k]}件）。何も書き込んでいません。` };
+  }
+  return { ok: true, data, report };
+}
+
+export function describeMigrationV3(r: MigrationV3Report): string[] {
+  const c = r.after;
+  const lines = [
+    `件数（前→後）：作品 ${r.before.works}→${c.works}、記録 ${r.before.logs}→${c.logs}、人物 ${r.before.people}→${c.people}、親作品 ${r.before.franchises}→${c.franchises}、写真 ${r.before.photos}→${c.photos}`,
+    `持っている巻の形：Kindle → 電子・Kindle ${r.rangeKindle}作品、紙のまま ${r.rangePaper}作品`,
+    `購入の形：Kindle → 電子・Kindle ${r.formatKindle}作品`,
+    `読む手段：ジャンプ＋ → 電子・ジャンプ＋ ${r.accessJumpPlus}作品、配信のまま ${r.accessStreaming}作品`,
     `自動で判断できなかった作品：${r.manual.length}件`,
   ];
   for (const m of r.manual) lines.push(`  ・${m.title || "（題名なし）"}：${m.reason}`);

@@ -1,5 +1,7 @@
 // 全記録をテキスト（Markdown）で書き出す。好きなもの台帳やAIの振り返りの材料（仕様181 §6.1）
-import { ACCESS_LABEL, CLEAR_LABEL, EVENT_KIND_LABEL, LOG_VIA_LABEL, MEDIUM_LABEL, PURCHASE_FORMAT_LABEL, PURCHASE_STAGE_LABEL, workStateWord, workStatusWord } from "./constants.js";
+import { CLEAR_LABEL, EVENT_KIND_LABEL, LOG_VIA_LABEL, MEDIUM_LABEL, PURCHASE_STAGE_LABEL, accessText, expectLabel, purchaseFormatText, workStateWord, workStatusWord } from "./constants.js";
+import { fuzzyKey, workExpect } from "./expectLogic.js";
+import { volumeList, volumesText } from "./purchaseLogic.js";
 import { subLabel } from "./courLogic.js";
 import { isoToDateKey } from "./dateUtils.js";
 import { logInRange } from "./exportRange.js";
@@ -15,7 +17,7 @@ function stars(n: number | null): string {
 function logLine(work: Work, l: Log): string {
   const kind = progressKindOf(work);
   const what = l.position ? (kind === "episode" ? `第${l.position}話` : `${l.position}巻`) : l.issueDate ? `${l.issueDate}発売の号` : "";
-  const date = l.datePrecision === "year" ? l.date.slice(0, 4) : l.datePrecision === "month" ? l.date.slice(0, 7) : l.date;
+  const date = l.datePrecision === "unknown" ? "日付不明" : l.datePrecision === "year" ? l.date.slice(0, 4) : l.datePrecision === "month" ? l.date.slice(0, 7) : l.date;
   const via = l.via ? LOG_VIA_LABEL[l.via] : "";
   // 視聴手段と場所が同じ言葉（配信など）のときは1回だけ
   const parts = [date, what, via, l.place && l.place !== via ? l.place : "", stars(l.rating)].filter(Boolean).join("　");
@@ -33,7 +35,7 @@ export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from:
   }
   const lines: string[] = ["# コンテンツ棚の記録", "", `- 書き出し：${exportedAt}`];
   if (range) lines.push(`- 期間：${range.label ? `${range.label}　` : ""}${range.from}〜${range.to}（期間内に記録がある作品だけ。年だけ・年月だけの記録は、その年・月がまるごと期間に入るときだけ）`);
-  lines.push("- 「状態」（視聴中・視聴済など）は書き出した時点のもの。「作品：」は作品そのものの状態（放送中・完結など）、クールは「2025年夏」「再放送 2026年秋」の形、「購入：」は所持・購入予定など。話数・巻は記録したものだけで、空欄は分からないことを表す", "");
+  lines.push("- 「状態」（視聴中・視聴済など）は書き出した時点のもの。「作品：」は作品そのものの状態（放送中・完結など）、クールは「2025年夏」「再放送 2026年秋」の形、「購入：」は持ってる・買う予定など（形は 紙／電子・Kindle など）、「読む手段：」は紙・電子・漫喫など、発売日・公開日・開催日・放送開始日は楽しみの日（月だけ・年だけもある）。記録の「日付不明」は、前に見終わっていた作品を2周目から登録したときの記録。話数・巻は記録したものだけで、空欄は分からないことを表す", "");
   for (const m of MEDIA) {
     const works = data.works
       .filter((w) => w.deletedAt === null && w.medium === m)
@@ -53,12 +55,18 @@ export function buildMarkdown(data: DataSet, exportedAt: string, range?: { from:
       if (w.isOriginal) head.push("原作");
       if (w.platform) head.push(w.platform);
       if (w.clearLevel) head.push(CLEAR_LABEL[w.clearLevel]);
-      if (w.purchase.stage !== "none") head.push(`購入：${PURCHASE_STAGE_LABEL[w.purchase.stage]}${w.purchase.format ? `（${PURCHASE_FORMAT_LABEL[w.purchase.format]}）` : ""}`);
-      if (w.access) head.push(ACCESS_LABEL[w.access]);
+      const fmt = purchaseFormatText(w.purchase.format, w.purchase.store);
+      if (w.purchase.stage !== "none") head.push(`購入：${PURCHASE_STAGE_LABEL[w.purchase.stage]}${fmt ? `（${fmt}）` : ""}`);
+      if (w.access) head.push(`${w.medium === "manga" ? "読む手段" : "見る手段"}：${accessText(w.access, w.accessStore)}`);
+      const expect = workExpect(w);
+      if (expect) head.push(`${expectLabel(w.medium)}：${fuzzyKey(expect)}`);
       if (w.progress) head.push(progressKindOf(w) === "episode" ? `第${w.progress}話まで` : `${w.progress}巻まで`);
       if (w.status === "done" && w.completedAt) head.push(`記録へ ${isoToDateKey(w.completedAt)}`);
       lines.push(`- ${head.join("｜")}`);
       if (fr) lines.push(`  - 親作品：${fr}`);
+      const reserved = volumeList(w.owned?.reserved);
+      if (reserved.length) lines.push(`  - 予約中の巻：${volumesText(reserved)}`);
+      if (w.owned?.volumeDates.length) lines.push(`  - 巻ごとの発売日：${w.owned.volumeDates.map((v) => `${v.volume}巻 ${fuzzyKey(v.date)}`).join("、")}`);
       if (people.length) lines.push(`  - 人物：${people.join("、")}`);
       if (w.setlist) lines.push(`  - セットリスト：${w.setlist.replace(/\n+/g, " / ")}`);
       if (w.memo) lines.push(`  - メモ：${w.memo.replace(/\n+/g, " ")}`);

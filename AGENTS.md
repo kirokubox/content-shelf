@@ -14,13 +14,13 @@
 - 仕様書・改善履歴・調査資料をここに増やさない。資料の更新は05側の該当ファイルを直す
 - 個人データ（バックアップ `content-shelf-backup-*.json`・マンガ棚やかぞえ帳のバックアップ・感想）をコミットしない。`public/` にも置かない
 - テストと見本には架空データだけを使う（実在の作品名も避ける）
-- 移し替えの確認：`npm run migrate:check -- <版1のバックアップJSONのパス> [--out <書き出し先>]`（何も書き込まない。実データはリポジトリ内に置かない）
+- 移し替えの確認：`npm run migrate:check -- <版1・版2のバックアップJSONのパス> [--out <書き出し先>]`（何も書き込まない。実データはリポジトリ内に置かない）
 - 検証：`npm run build`（型チェック＋本番ビルド）と `npm test`（純粋ロジックの `node --test`）を通す
 - 版番号：`src/constants.ts` の `APP_VERSION` と `package.json` の version をそろえ、変更をpushするたびに上げる
 - `package.json` に `"latest"` を書かない。削除は論理削除（`deletedAt`）
 
 ## コード構成（要点）
 
-- 純粋ロジック（テスト対象）：`src/types.ts`（型）、`src/constants.ts`（DB名・メディアの表示名と数え方・版番号）、`src/dateUtils.ts`（暦日 `YYYY-MM-DD`）、`src/progressLogic.ts`（放送済み・既刊・未消化・＋1・記録への自動切り替え）、`src/backup.ts`（バックアップの保存・検証・追加の差分）、`src/mangaShelfImport.ts`（マンガ棚のバックアップの変換）、`src/summaryLogic.ts`（集計）、`src/searchLogic.ts`（検索）、`src/workFactory.ts`（新しい作品・記録）、`src/dataOps.ts`（変更の反映・読み込み時の補い）、`src/courLogic.ts`（クール・今期の一覧・視聴手段の既定）、`src/migrate.ts`（データの形 版1→版2 の移し替え。端末とバックアップ読み込みで共通）
-- 保存：`src/storage.ts`（IndexedDB。DB名 `content-shelf`、ストア `franchises`・`works`・`logs`・`people`・`photos`・`migrations`。DB版4で開いたときに版1のデータを自動で移し替え、移す前の丸ごとを `migrations` に1回だけ保存）
-- 画面：`src/App.tsx`（骨組み・重ねる画面の管理）、`src/TabBar.tsx`（下タブ4つ）、`src/TabViews.tsx`（ホーム・続き・記録・集計）、`src/WorkCard.tsx`（続きのカードと＋1の長押し）、`src/WorkDetail.tsx`・`src/WorkEditor.tsx`・`src/LogSheet.tsx`（詳細・登録と編集・記録1件）、`src/SearchView.tsx`、`src/SettingsView.tsx`、`src/Screen.tsx`（全画面の枠・…メニュー・星）、共通部品 `src/BottomSheet.tsx`・`src/Toast.tsx`・`src/Icon.tsx`・`src/tokens.css`（家計簿から写した）
+- 純粋ロジック（テスト対象）：`src/types.ts`（型）、`src/constants.ts`（DB名・メディアの表示名と数え方・版番号）、`src/dateUtils.ts`（暦日 `YYYY-MM-DD`）、`src/progressLogic.ts`（放送済み・既刊・未消化・＋1・記録への自動切り替え）、`src/backup.ts`（バックアップの保存・検証・追加の差分）、`src/mangaShelfImport.ts`（マンガ棚のバックアップの変換）、`src/summaryLogic.ts`（集計）、`src/searchLogic.ts`（検索）、`src/workFactory.ts`（新しい作品・記録）、`src/dataOps.ts`（変更の反映・読み込み時の補い）、`src/courLogic.ts`（クール・今期の一覧・視聴手段の既定）、`src/migrate.ts`（データの形 版1→版2→版3 の移し替え。端末とバックアップ読み込みで共通）、`src/purchaseLogic.ts`（まだ買っていない巻・巻を選んで買う／予約する・購入画面の一覧。v0.17.0）、`src/expectLogic.ts`（楽しみの日・ホームの楽しみの予定。v0.17.0）
+- 保存：`src/storage.ts`（IndexedDB。DB名 `content-shelf`、ストア `franchises`・`works`・`logs`・`people`・`photos`・`migrations`。DB版4で開いたときに版1・版2のデータを自動で版3へ移し替え、移す前の丸ごとを `migrations`（v1-before・v2-before）に1回だけ保存）
+- 画面：`src/App.tsx`（骨組み・重ねる画面の管理）、`src/TabBar.tsx`（下タブ5つ）、`src/TabViews.tsx`（ホーム・続き・記録・集計）、`src/PurchaseView.tsx`（購入タブと巻を選ぶシート）、`src/WorkCard.tsx`（続きのカードと＋1の長押し）、`src/WorkDetail.tsx`・`src/WorkEditor.tsx`・`src/LogSheet.tsx`（詳細・登録と編集・記録1件）、`src/SearchView.tsx`、`src/SettingsView.tsx`、`src/Screen.tsx`（全画面の枠・…メニュー・星）、共通部品 `src/BottomSheet.tsx`・`src/Toast.tsx`・`src/Icon.tsx`・`src/tokens.css`（家計簿から写した）

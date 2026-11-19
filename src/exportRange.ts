@@ -59,6 +59,8 @@ export function exportRange(unit: "week" | "month", today: string, offset: numbe
  * （年月だけの記録を、1日を含む週に入れてしまわないように）
  */
 export function logInRange(date: string, precision: DatePrecision | undefined, range: { from: string; to: string }): boolean {
+  // 日付不明の記録は、どの期間にも入れない（全期間の書き出しだけに出る）
+  if (precision === "unknown") return false;
   let start = date;
   let end = date;
   if (precision === "year") {

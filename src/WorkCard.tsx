@@ -4,7 +4,7 @@ import { CoverImg } from "./CoverImg";
 import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
-import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
 import type { Work } from "./types";
 
 /** 押して離したら onTap、長押しなら onLong（＋1の長押しで日付を選ぶ） */
@@ -36,15 +36,13 @@ interface Props {
   onOpen: (work: Work) => void;
   onStep: (work: Work) => void;
   onStepWithDate: (work: Work) => void;
-  onBought?: (work: Work) => void;
   /** 読書中の小説の「読み終えた」：記録の入力を開く */
   onFinish?: (work: Work) => void;
   /** 今期の再放送として出すとき */
   rerun?: boolean;
 }
 
-export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought, onFinish, rerun }: Props) {
-  const unpurchased = unpurchasedCount(work);
+export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish, rerun }: Props) {
   const gaps = ownedGapSummary(work);
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
@@ -70,14 +68,10 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onBought
             {isTsundoku(work) && <span className="wait-note">積読</span>}
             {rerun && <span className="wait-note">再放送</span>}
             {work.rounds >= 2 && <span className="wait-note">{roundsLabel(work)}</span>}
+            {work.access === "manga_cafe" && <span className="wait-note">漫喫</span>}
             {gaps.count > 0 && <span className="gap-note">抜け {gaps.count}巻</span>}
           </span>
         </button>
-        {unpurchased > 0 && (
-          <button type="button" className="buy-btn" aria-label={`${work.title}の次の巻を買った`} onClick={() => onBought?.(work)} disabled={!onBought}>
-            未購入 {unpurchased}巻・買った
-          </button>
-        )}
         {work.medium === "novel" && work.status === "active" && onFinish && (
           <button type="button" className="buy-btn" aria-label={`${work.title}を読み終えた（記録を書く）`} onClick={() => onFinish(work)}>
             読み終えた

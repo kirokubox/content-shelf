@@ -77,25 +77,25 @@ test("今期の一覧：配信の作品は外し、記録が無ければ放送�
   assert.equal(latestViaMap(logs).get("onair"), "broadcast");
 });
 
-test("追っている：放送予定、または放送中＋今期のクール＋最新の記録が配信でない。途中＝それ以外の進行中", () => {
+test("現在：放送予定、または放送中＋今期のクール＋最新の記録が配信でない。途中＝それ以外の進行中", () => {
   const base = { ...emptyWork("anime", NOW), title: "a", status: "active" as const };
   const ctx = { today: TODAY, latestVia: null };
-  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL] }, ctx), "following");
-  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL] }, { ...ctx, latestVia: "streaming" }), "reading");
-  assert.equal(continueGroup({ ...base, workState: "finished", cours: [FALL] }, ctx), "reading");
-  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [] }, ctx), "reading");
-  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [{ ...FALL, year: 2025 }] }, ctx), "reading");
+  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL] }, ctx), "current");
+  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL] }, { ...ctx, latestVia: "streaming" }), "partway");
+  assert.equal(continueGroup({ ...base, workState: "finished", cours: [FALL] }, ctx), "partway");
+  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [] }, ctx), "partway");
+  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [{ ...FALL, year: 2025 }] }, ctx), "partway");
   // 放送予定が入っていれば、最新の記録が配信でも追っている
   const schedule = { firstDate: "2026-10-05", firstNumber: 1, skipDates: [] };
-  assert.equal(continueGroup({ ...base, schedule, cours: [] }, { ...ctx, latestVia: "streaming" }), "following");
-  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL], status: "wish" }, ctx), null);
+  assert.equal(continueGroup({ ...base, schedule, cours: [] }, { ...ctx, latestVia: "streaming" }), "current");
+  assert.equal(continueGroup({ ...base, workState: "ongoing", cours: [FALL], status: "wish" }, ctx), "planned");
 });
 
 test("積読・○周目・もう一度見ると周回数が増える", () => {
   const w = { ...emptyWork("manga", NOW), status: "wish" as const };
-  assert.equal(isTsundoku({ ...w, purchase: { stage: "owned", format: "paper" } }), true);
-  assert.equal(isTsundoku({ ...w, purchase: { stage: "planned", format: null } }), false);
-  assert.equal(isTsundoku({ ...w, status: "active", purchase: { stage: "owned", format: null } }), false);
+  assert.equal(isTsundoku({ ...w, purchase: { stage: "owned", format: "paper", store: null } }), true);
+  assert.equal(isTsundoku({ ...w, purchase: { stage: "planned", format: null, store: null } }), false);
+  assert.equal(isTsundoku({ ...w, status: "active", purchase: { stage: "owned", format: null, store: null } }), false);
   assert.equal(roundsLabel({ rounds: 1 }), "");
   assert.equal(roundsLabel({ rounds: 3 }), "3周目");
   const again = startAgain({ ...w, status: "done", rounds: 1, progress: 10 }, NOW);
@@ -123,15 +123,16 @@ test("表示名は名詞：状態・購入・視聴手段", () => {
   assert.deepEqual(workStateChoices("novel").map((s) => workStateWord("novel", s)), ["発売前", "発売済", "不明"]);
   assert.deepEqual(workStateChoices("movie").map((s) => workStateWord("movie", s)), ["公開前", "公開済", "不明"]);
   assert.deepEqual(workStateChoices("live").map((s) => workStateWord("live", s)), ["開催前", "開催済", "不明"]);
-  assert.deepEqual(Object.values(PURCHASE_STAGE_LABEL), ["未所持", "購入予定", "予約済", "所持"]);
+  // v0.17.0 で購入の段階の名前を 持ってない／買う予定／予約済み／持ってる に変えた
+  assert.deepEqual(Object.values(PURCHASE_STAGE_LABEL), ["持ってない", "買う予定", "予約済み", "持ってる"]);
   assert.deepEqual(Object.values(LOG_VIA_LABEL), ["放送", "再放送", "配信", "円盤", "録画", "劇場・会場"]);
   assert.equal(statusWord("manga", "wish"), "読書予定");
 });
 
 test("書き出し：作品の状態・クール・周回数・購入・視聴手段が出る", () => {
-  const w = { ...emptyWork("anime", NOW), id: "a", title: "架空アニメ", partLabel: "第2期", cours: [FALL, currentRerun(TODAY)], workState: "finished" as const, rounds: 2, status: "done" as const, purchase: { stage: "owned" as const, format: "bluray" as const }, progress: 12 };
+  const w = { ...emptyWork("anime", NOW), id: "a", title: "架空アニメ", partLabel: "第2期", cours: [FALL, currentRerun(TODAY)], workState: "finished" as const, rounds: 2, status: "done" as const, purchase: { stage: "owned" as const, format: "bluray" as const, store: null }, progress: 12 };
   const l = newLog({ workId: "a", kind: "progress", date: "2026-10-05", position: 3, place: "テレビ", via: "broadcast" }, NOW);
   const md = buildMarkdown({ franchises: [], people: [], works: [w], logs: [l] }, NOW);
-  assert.ok(md.includes("- 架空アニメ 第2期 2026年秋・再放送 2026年秋｜視聴済｜作品：完結｜2周目｜購入：所持（Blu-ray）｜第12話まで"), md);
+  assert.ok(md.includes("- 架空アニメ 第2期 2026年秋・再放送 2026年秋｜視聴済｜作品：完結｜2周目｜購入：持ってる（Blu-ray）｜第12話まで"), md);
   assert.ok(md.includes("  - 2026-10-05　第3話　放送　テレビ"), md);
 });

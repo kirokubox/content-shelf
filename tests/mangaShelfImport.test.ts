@@ -32,15 +32,17 @@ test("マンガ棚の項目を消さずに移し、記録は作らない", () =>
   assert.equal(a.status, "done");
   assert.equal(a.edition, "新装版");
   assert.equal(a.kana, "かくうのかんけつまんが");
-  assert.deepEqual(a.owned, { known: true, ranges: [{ from: 1, to: 10, medium: "paper" }], reserved: [], place: "parents_home" });
-  assert.deepEqual(a.purchase, { stage: "owned", format: "paper" });
+  assert.deepEqual(a.owned, { known: true, ranges: [{ from: 1, to: 10, medium: "paper", store: null }], reserved: [], volumeDates: [], place: "parents_home" });
+  assert.deepEqual(a.purchase, { stage: "owned", format: "paper", store: null });
   assert.equal(a.externalIds.anilist, 123);
   assert.equal(a.legacyNote, "旧メモ");
   assert.equal(a.memo, "メモ");
   // 連載中は最新巻まで読んでも続きに残す
   assert.equal(b.status, "active");
   assert.equal(b.workState, "ongoing");
-  assert.equal(b.access, "jump_plus");
+  // v0.17.0：ジャンプ＋は読む手段の 電子・ジャンプ＋
+  assert.equal(b.access, "digital");
+  assert.equal(b.accessStore, "jump_plus");
   assert.equal(b.purchase.stage, "none");
   assert.equal(c.status, "wish");
   assert.equal(c.progress, null);

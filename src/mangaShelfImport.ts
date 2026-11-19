@@ -1,6 +1,6 @@
 // マンガ棚のバックアップ（manga-shelf-backup-*.json、version 2）をコンテンツ棚の作品へ変換する（仕様181 §6.2）。
 // マンガ棚には「いつ読んだか」が無いので、記録（Log）は作らない（日付を創作しない）。
-import type { Access, PaperPlace, PurchaseStage, RangeMedium, VolumeRange, Work, WorkState } from "./types.js";
+import type { Access, PaperPlace, PurchaseStage, RangeMedium, VolumeRange, Work, WorkState, DigitalStore } from "./types.js";
 
 interface MangaSeries {
   id: string;
@@ -42,9 +42,11 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
   const progress = s.readProgressKnown === false ? null : posInt(s.readUpTo);
   const allRead = workState === "finished" && total !== null && progress !== null && progress >= total;
   const status = s.planned && !progress ? "wish" : allRead ? "done" : "active";
-  const rangeMedium: RangeMedium = s.ownedMedium === "paper" || s.ownedMedium === "kindle" ? s.ownedMedium : null;
-  const access: Access = s.ownedMedium === "jump_plus" ? "jump_plus" : null;
-  const ranges: VolumeRange[] = Array.isArray(s.ownedRanges) ? s.ownedRanges.map((r) => ({ from: r.from, to: r.to, medium: rangeMedium })) : [];
+  // v0.17.0：Kindle は 電子＋Kindle、ジャンプ＋は読む手段の 電子＋ジャンプ＋
+  const rangeMedium: RangeMedium = s.ownedMedium === "paper" ? "paper" : s.ownedMedium === "kindle" ? "digital" : null;
+  const rangeStore: DigitalStore | null = s.ownedMedium === "kindle" ? "kindle" : null;
+  const access: Access = s.ownedMedium === "jump_plus" ? "digital" : null;
+  const ranges: VolumeRange[] = Array.isArray(s.ownedRanges) ? s.ownedRanges.map((r) => ({ from: r.from, to: r.to, medium: rangeMedium, store: rangeStore })) : [];
   const stage: PurchaseStage = ranges.length > 0 ? "owned" : s.planned ? "planned" : "none";
   const created = s.createdAt ?? now;
   const updated = s.updatedAt ?? now;
@@ -72,10 +74,14 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
       ranges,
       reserved: [],
       place: s.paperLocation ?? null,
+      volumeDates: [],
     },
     edition: s.editionLabel ?? "",
-    purchase: { stage, format: stage === "owned" ? rangeMedium : null },
+    purchase: { stage, format: stage === "owned" ? rangeMedium : null, store: stage === "owned" ? rangeStore : null },
     access,
+    accessStore: access === "digital" ? "jump_plus" : null,
+    expect: null,
+    homePick: false,
     externalIds: { ...(s.anilistId ? { anilist: s.anilistId } : {}), mangaShelf: s.id },
     coverUrl: null,
     memo: s.memo ?? "",

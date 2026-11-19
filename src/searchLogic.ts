@@ -1,4 +1,4 @@
-import { LOG_VIA_LABEL } from "./constants.js";
+import { LOG_VIA_LABEL, accessText } from "./constants.js";
 import { courSearchText } from "./courLogic.js";
 import type { DataSet, Franchise, Log, Person, Work } from "./types.js";
 
@@ -57,7 +57,7 @@ export function searchMine(data: DataSet, query: string): SearchHit[] {
   const peopleName = new Map(data.people.filter((p) => p.deletedAt === null).map((p) => [p.id, p.name]));
   for (const w of works) {
     const names = w.personIds.map((id) => peopleName.get(id) ?? "").join(" ");
-    const self = normalize(`${w.title} ${w.kana} ${courSearchText(w)} ${w.memo} ${w.edition} ${w.setlist} ${names}`).includes(q);
+    const self = normalize(`${w.title} ${w.kana} ${courSearchText(w)} ${w.memo} ${w.edition} ${w.setlist} ${names} ${accessText(w.access, w.accessStore)}`).includes(q);
     const logs = logsByWork.get(w.id) ?? [];
     if (self || logs.length > 0) hits.push({ work: w, logs });
   }

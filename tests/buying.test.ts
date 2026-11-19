@@ -8,7 +8,7 @@ import type { DataSet, Work } from "../src/types.js";
 const NOW = "2026-10-31T03:00:00.000Z";
 
 function manga(patch: Partial<Work> = {}): Work {
-  return { ...emptyWork("manga", NOW), title: "架空マンガ", buying: true, latestKnown: 12, owned: { known: true, ranges: [{ from: 1, to: 10 }], reserved: [], place: "home" }, ...patch };
+  return { ...emptyWork("manga", NOW), title: "架空マンガ", buying: true, latestKnown: 12, owned: { known: true, ranges: [{ from: 1, to: 10 }], reserved: [], volumeDates: [], place: "home" }, ...patch };
 }
 
 test("新刊を買うシリーズだけ、既刊−持っている最大の巻を未購入として数える", () => {
@@ -19,15 +19,15 @@ test("新刊を買うシリーズだけ、既刊−持っている最大の巻�
 
 test("所持最大巻までの抜けを、数と範囲で返す", () => {
   assert.deepEqual(
-    ownedGapSummary(manga({ owned: { known: true, ranges: [{ from: 1, to: 5 }, { from: 8, to: 8 }, { from: 12, to: 18 }], reserved: [], place: "home" } })),
+    ownedGapSummary(manga({ owned: { known: true, ranges: [{ from: 1, to: 5 }, { from: 8, to: 8 }, { from: 12, to: 18 }], reserved: [], volumeDates: [], place: "home" } })),
     { count: 5, ranges: [{ from: 6, to: 7 }, { from: 9, to: 11 }], text: "6-7, 9-11" },
   );
-  assert.deepEqual(ownedGapSummary(manga({ owned: { known: false, ranges: [{ from: 3, to: 3 }], reserved: [], place: null } })), { count: 0, ranges: [], text: "" });
-  assert.deepEqual(ownedGapSummary(manga({ owned: { known: true, ranges: [], reserved: [], place: null } })), { count: 0, ranges: [], text: "" });
+  assert.deepEqual(ownedGapSummary(manga({ owned: { known: false, ranges: [{ from: 3, to: 3 }], reserved: [], volumeDates: [], place: null } })), { count: 0, ranges: [], text: "" });
+  assert.deepEqual(ownedGapSummary(manga({ owned: { known: true, ranges: [], reserved: [], volumeDates: [], place: null } })), { count: 0, ranges: [], text: "" });
 });
 
 test("抜けは未購入の数と、買ったボタンの次巻を変えない", () => {
-  const work = manga({ latestKnown: 12, owned: { known: true, ranges: [{ from: 1, to: 4 }, { from: 6, to: 10 }], reserved: [], place: "home" } });
+  const work = manga({ latestKnown: 12, owned: { known: true, ranges: [{ from: 1, to: 4 }, { from: 6, to: 10 }], reserved: [], volumeDates: [], place: "home" } });
   assert.equal(ownedGapSummary(work).count, 1);
   assert.equal(unpurchasedCount(work), 2);
   assert.deepEqual(markBoughtNext(work, NOW).owned?.ranges, [{ from: 1, to: 4 }, { from: 6, to: 11 }]);
@@ -37,8 +37,8 @@ test("買った：持っている範囲をのばす。離れていれば新し�
   const a = markBoughtNext(manga(), NOW);
   assert.deepEqual(a.owned?.ranges, [{ from: 1, to: 11 }]);
   assert.equal(unpurchasedCount(a), 1);
-  const b = markBoughtNext(manga({ owned: { known: true, ranges: [], reserved: [], place: null } }), NOW);
-  assert.deepEqual(b.owned?.ranges, [{ from: 1, to: 1, medium: null }]);
+  const b = markBoughtNext(manga({ owned: { known: true, ranges: [], reserved: [], volumeDates: [], place: null } }), NOW);
+  assert.deepEqual(b.owned?.ranges, [{ from: 1, to: 1, medium: null, store: null }]);
   assert.equal(b.purchase.stage, "owned");
 });
 

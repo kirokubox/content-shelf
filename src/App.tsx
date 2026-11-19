@@ -2,15 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { applyAnilist, fetchAnilistByIds } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { ConfirmSheet } from "./BottomSheet";
-import { MEDIUM_LABEL, REFRESH_INTERVAL_MS, hasVia, workStatusWord } from "./constants";
-import { addCour, currentRerun, defaultVia } from "./courLogic";
+import { MEDIUM_LABEL, PURCHASE_STAGE_LABEL, REFRESH_INTERVAL_MS, hasVia, workStatusWord } from "./constants";
+import { defaultVia } from "./courLogic";
 import { applyChanges, EMPTY_DATA } from "./dataOps";
 import { nowIso, todayKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogDetail } from "./LogDetail";
 import { LogSheet } from "./LogSheet";
 import { ENABLED_MEDIA_KEY, parseEnabledMedia, toggleMedium, visibleMedia } from "./mediaPrefs";
-import { markBoughtNext, markNewVolume, progressKindOf, startAgain, stepForward, withAutoStatus } from "./progressLogic";
+import { addCurrentRerun, markNewVolume, progressKindOf, startAgain, stepForward, withAutoStatus } from "./progressLogic";
+import { buyVolumes, reserveVolumes, setPurchaseStage, volumesText } from "./purchaseLogic";
+import type { Shape } from "./purchaseLogic";
+import { PurchaseView, VolumePickSheet } from "./PurchaseView";
 import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
@@ -44,6 +47,8 @@ export default function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [stack, setStack] = useState<Overlay[]>([]);
   const [sheet, setSheet] = useState<SheetState>(null);
+  // マンガの巻を選ぶシート（買った・予約した）
+  const [volSheet, setVolSheet] = useState<{ workId: string; mode: "buy" | "reserve" } | null>(null);
   // 使う種類（登録画面に出す種類）。この端末の表示の設定で、バックアップには入れない。null＝全部
   const [enabledMedia, setEnabledMedia] = useState<Medium[] | null>(() => {
     try {
@@ -104,18 +109,55 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  /** 変更を画面と保存先の両方へ */
+  /** 変更を画面と保存先の両方へ。保存できたら true（できなければ知らせて false） */
   const commit = useCallback(
-    async (changes: Partial<DataSet>) => {
+    async (changes: Partial<DataSet>): Promise<boolean> => {
       setData((cur) => applyChanges(cur, changes));
       try {
         await putRecords(changes);
+        return true;
       } catch (e) {
         showToast(`保存できませんでした：${e instanceof Error ? e.message : ""}`, 5000);
+        return false;
       }
     },
     [showToast],
   );
+
+  /**
+   * 購入の操作を保存する（v0.17.0）。保存できたら「取り消す」つきで知らせ、できなかったら画面も元に戻す。
+   * 購入の操作は見る・読む進み具合を変えない（purchaseLogic の関数がそうなっている）
+   */
+  const savePurchase = async (prev: Work, next: Work, message: string) => {
+    const ok = await commit({ works: [next] });
+    if (!ok) {
+      setData((cur) => applyChanges(cur, { works: [prev] }));
+      return;
+    }
+    showToast(message, 5000, {
+      label: "取り消す",
+      onClick: () => {
+        void commit({ works: [{ ...prev, updatedAt: nowIso() }] }).then((undone) => { if (undone) showToast("取り消しました"); });
+      },
+    });
+  };
+  const pickVolumes = (work: Work, mode: "buy" | "reserve") => setVolSheet({ workId: work.id, mode });
+  const confirmVolumes = (work: Work, mode: "buy" | "reserve", nums: number[], shape: Shape) => {
+    const r = mode === "buy" ? buyVolumes(work, nums, shape) : reserveVolumes(work, nums, shape);
+    if ("error" in r) return showToast(r.error);
+    setVolSheet(null);
+    void savePurchase(work, r.work, `${work.title}：${volumesText(nums)}巻を${mode === "buy" ? "買った" : "予約した"}にしました`);
+  };
+  const setStage = (work: Work, stage: "reserved" | "owned") => {
+    void savePurchase(work, setPurchaseStage(work, stage), `${work.title}：「${PURCHASE_STAGE_LABEL[stage]}」にしました`);
+  };
+  /** ホームに出す積読（全体で1冊だけ） */
+  const toggleHomePick = (work: Work) => {
+    const now = nowIso();
+    const on = !work.homePick;
+    const others = data.works.filter((w) => w.homePick && w.id !== work.id).map((w) => ({ ...w, homePick: false, updatedAt: now }));
+    void commit({ works: [...others, { ...work, homePick: on, updatedAt: now }] }).then((ok) => { if (ok) showToast(on ? "ホームに出す積読にしました" : "ホームに出す積読から外しました"); });
+  };
 
   const push = (o: Overlay) => setStack((s) => [...s, o]);
   const pop = () => setStack((s) => s.slice(0, -1));
@@ -174,12 +216,6 @@ export default function App() {
     showToast("作品を削除しました", 5000, { label: "取り消す", onClick: () => commit({ works: [work], logs: logs.map((l) => ({ ...l, deletedAt: null })) }) });
   };
 
-  const bought = (work: Work) => {
-    const next = markBoughtNext(work);
-    commit({ works: [next] });
-    const vol = next.owned?.ranges.reduce((m, r) => Math.max(m, r.to), 0);
-    showToast(`${work.title}：${vol}巻を買った`, 4000, { label: "取り消す", onClick: () => commit({ works: [{ ...work, updatedAt: nowIso() }] }) });
-  };
   const newVolume = (work: Work) => {
     const next = markNewVolume(work);
     commit({ works: [next] });
@@ -188,7 +224,6 @@ export default function App() {
 
   const handlers = {
     today,
-    onBought: bought,
     onOpen: (w: Work) => push({ kind: "detail", workId: w.id }),
     onStep: (w: Work) => step(w),
     onStepWithDate: (w: Work) => setSheet({ workId: w.id, log: null, newKind: "progress" }),
@@ -231,6 +266,8 @@ export default function App() {
           <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoCour={() => push({ kind: "cour" })} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} enabledMedia={enabledMedia} onToggleMedium={toggleEnabledMedium} />
         ) : tab === "continue" ? (
           <ContinueView data={data} handlers={handlers} onAdd={openAdd} enabledMedia={enabledMedia} />
+        ) : tab === "purchase" ? (
+          <PurchaseView data={data} today={today} enabledMedia={enabledMedia} handlers={{ onOpen: handlers.onOpen, onPickVolumes: pickVolumes, onSetStage: setStage }} />
         ) : tab === "records" ? (
           <RecordsView data={data} onOpen={openRecord} enabledMedia={enabledMedia} />
         ) : (
@@ -359,8 +396,8 @@ export default function App() {
               pick={o.pick ?? null}
               media={visibleMedia(enabledMedia)}
               onCancel={pop}
-              onSave={(work, firstLog, created) => {
-                commit({ works: [work], logs: firstLog ? [firstLog] : [], franchises: created.franchises, people: created.people });
+              onSave={(work, firstLogs, created) => {
+                commit({ works: [work], logs: firstLogs, franchises: created.franchises, people: created.people });
                 pop();
                 showToast(w ? "保存しました" : `${work.title}を登録しました`);
               }}
@@ -405,11 +442,15 @@ export default function App() {
             onEditLog={(log) => push({ kind: "log", workId: w.id, logId: log.id })}
             onSetStatus={(s) => setStatus(w, s)}
             onDelete={() => setConfirmDelete(w)}
-            onBought={() => bought(w)}
+            onPickVolumes={(mode) => pickVolumes(w, mode)}
+            onToggleHomePick={() => toggleHomePick(w)}
             onNewVolume={() => newVolume(w)}
             onAddRerun={() => {
-              commit({ works: [{ ...w, cours: addCour(w.cours, currentRerun(today)), updatedAt: nowIso() }] });
-              showToast("今期の再放送を足しました");
+              // 済の作品なら2周目以降として最初から。済でなければ1周目のまま（今期のアニメと「現在」に出す）
+              const next = addCurrentRerun(w, today);
+              void commit({ works: [next] }).then((ok) => {
+                if (ok) showToast(next.rounds > w.rounds ? `今期の再放送を足しました（${next.rounds}周目）` : "今期の再放送を足しました", 5000, { label: "取り消す", onClick: () => commit({ works: [{ ...w, updatedAt: nowIso() }] }) });
+              });
             }}
             onStartAgain={() => {
               commit({ works: [startAgain(w)] });
@@ -433,6 +474,14 @@ export default function App() {
             setSheet(null);
             showToast("記録を削除しました", 5000, { label: "取り消す", onClick: () => commit({ logs: [log] }) });
           }}
+        />
+      )}
+      {volSheet && workById(volSheet.workId) && (
+        <VolumePickSheet
+          work={workById(volSheet.workId)!}
+          mode={volSheet.mode}
+          onClose={() => setVolSheet(null)}
+          onConfirm={(nums, shape) => confirmVolumes(workById(volSheet.workId)!, volSheet.mode, nums, shape)}
         />
       )}
       {confirmDelete && (

@@ -24,18 +24,19 @@ export function SegRow<T>({ label, value, choices, onChange, clearValue }: { lab
   );
 }
 
-/** 日付の細かさ。"none"＝分からない（記録を付けない。登録画面だけ） */
+/** 日付の細かさ。"none"＝分からない（記録を付けない。登録画面だけ）、"unknown"＝日付不明のまま記録を付ける（v0.17.0） */
 export type PrecisionChoice = DatePrecision | "none";
 
 const PRECISIONS: { value: PrecisionChoice; label: string }[] = [
   { value: "day", label: "日付" },
   { value: "month", label: "年月" },
   { value: "year", label: "年だけ" },
+  { value: "unknown", label: "日付不明" },
   { value: "none", label: "不明" },
 ];
 
 /** 日付（細かさを右上で選ぶ）。昔の作品は年だけ・年月だけで付けられる */
-export function DateField({ label, value, precision, today, allowUnknown, onChange }: { label: string; value: string; precision: PrecisionChoice; today: string; allowUnknown?: boolean; onChange: (value: string, precision: PrecisionChoice) => void }) {
+export function DateField({ label, value, precision, today, allowUnknown, allowDateUnknown, allowFuture, noneLabel, onChange }: { label: string; value: string; precision: PrecisionChoice; today: string; allowUnknown?: boolean; /** 日付不明の記録を選べる（記録の入力） */ allowDateUnknown?: boolean; /** 先の日付も入れられる（楽しみの日） */ allowFuture?: boolean; /** "none" の名前（楽しみの日は「なし」） */ noneLabel?: string; onChange: (value: string, precision: PrecisionChoice) => void }) {
   const changePrecision = (p: PrecisionChoice) => {
     // 入っている日付から、新しい細かさの形へ（2015-03-10 → 2015-03 → 2015）
     const year = value.slice(0, 4) || today.slice(0, 4);
@@ -48,17 +49,18 @@ export function DateField({ label, value, precision, today, allowUnknown, onChan
       <span className="field-label date-label">
         {label}
         <select className="precision-select" value={precision} onChange={(e) => changePrecision(e.target.value as PrecisionChoice)} aria-label="日付の細かさ">
-          {PRECISIONS.filter((p) => allowUnknown || p.value !== "none").map((p) => (
+          {PRECISIONS.filter((p) => (allowUnknown || p.value !== "none") && (allowDateUnknown || p.value !== "unknown")).map((p) => (
             <option key={p.value} value={p.value}>
-              {p.label}
+              {p.value === "none" && noneLabel ? noneLabel : p.label}
             </option>
           ))}
         </select>
       </span>
-      {precision === "day" && <input className="text-input" type="date" value={value} max={today} onChange={(e) => onChange(e.target.value, precision)} aria-label={label} />}
-      {precision === "month" && <input className="text-input" type="month" value={value} max={today.slice(0, 7)} onChange={(e) => onChange(e.target.value, precision)} aria-label={label} />}
+      {precision === "day" && <input className="text-input" type="date" value={value} max={allowFuture ? undefined : today} onChange={(e) => onChange(e.target.value, precision)} aria-label={label} />}
+      {precision === "month" && <input className="text-input" type="month" value={value} max={allowFuture ? undefined : today.slice(0, 7)} onChange={(e) => onChange(e.target.value, precision)} aria-label={label} />}
       {precision === "year" && <input className="text-input" inputMode="numeric" value={value} onChange={(e) => onChange(e.target.value, precision)} placeholder="例：2015" aria-label={label} />}
-      {precision === "none" && <span className="text-input placeholder-box">記録を付けない</span>}
+      {precision === "unknown" && <span className="text-input placeholder-box">日付不明</span>}
+      {precision === "none" && <span className="text-input placeholder-box">{noneLabel ? "まだ決まっていない" : "記録を付けない"}</span>}
     </div>
   );
 }

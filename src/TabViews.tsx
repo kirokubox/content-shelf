@@ -12,7 +12,10 @@ import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
 import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
 import { MonthSummaryView } from "./MonthSummaryView";
-import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
+import { upcomingByMedium } from "./expectLogic";
+import type { UpcomingItem } from "./expectLogic";
+import { formatFuzzy } from "./expectLogic";
 
 interface CardHandlers {
   today: string;
@@ -20,7 +23,6 @@ interface CardHandlers {
   onOpen: (work: Work) => void;
   onStep: (work: Work) => void;
   onStepWithDate: (work: Work) => void;
-  onBought: (work: Work) => void;
 }
 
 /** 記録タブ・ホームの下段に出す1件（見た記録、または記録へ移った作品） */
@@ -86,19 +88,49 @@ function RecordRow({ item, onOpen }: { item: RecordItem; onOpen: (item: RecordIt
   );
 }
 
+/** 楽しみの予定の1行（例：マンガ　12巻　発売 12月20日（土）） */
+function UpcomingRow({ item, today, onOpen }: { item: UpcomingItem; today: string; onOpen: (work: Work) => void }) {
+  const { work } = item;
+  return (
+    <li>
+      <button type="button" className="list-row" onClick={() => onOpen(work)}>
+        <CoverImg work={work} className="cover-thumb record-cover" />
+        <span className="list-main">
+          <span className="list-name">
+            {work.title}
+            {item.volume !== null && <span className="work-season"> {item.volume}巻</span>}
+          </span>
+          <span className="list-sub">
+            <span className="medium-tag">{mediumTag(work)}</span>
+            {item.label} {formatFuzzy(item.date, today)}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRecords, onOpenRecord, enabledMedia, onToggleMedium }: { onGoCour: () => void; enabledMedia: Medium[] | null; onToggleMedium: (medium: Medium) => void; data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
+  const [caughtCourOpen, setCaughtCourOpen] = useState(false);
   const covers = useMemo(
     () => data.works.filter((w) => w.deletedAt === null).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 12),
     [data.works],
   );
   const viaMap = useMemo(() => latestViaMap(data.logs), [data.logs]);
-  const courCount = useMemo(() => currentCourList(data.works, data.logs, handlers.today).active.length, [data.works, data.logs, handlers.today]);
+  // 今期のアニメ：最初から開いておく。未視聴が無い（追いついた）作品だけたたむ
+  const cour = useMemo(() => currentCourList(data.works, data.logs, handlers.today).active, [data.works, data.logs, handlers.today]);
+  const courMain = cour.filter((c) => unconsumedCount(c.work, handlers.today) !== 0);
+  const courCaught = cour.filter((c) => unconsumedCount(c.work, handlers.today) === 0);
+  const courIds = useMemo(() => new Set(cour.map((c) => c.work.id)), [cour]);
+  const upcoming = useMemo(() => upcomingByMedium(data.works, handlers.today), [data.works, handlers.today]);
+  // ホームに出す積読（詳細画面で1冊選ぶ）。もう積読でなくなっていたら出さない
+  const pick = data.works.find((w) => w.deletedAt === null && w.homePick && isTsundoku(w)) ?? null;
   const waiting = useMemo(
     () => data.works
-      .filter((w) => w.deletedAt === null && continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === "following" && hasNext(w, handlers.today))
+      .filter((w) => w.deletedAt === null && !courIds.has(w.id) && continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === "current" && hasNext(w, handlers.today))
       .sort((a, b) => (unconsumedCount(b, handlers.today) ?? 0) - (unconsumedCount(a, handlers.today) ?? 0) || b.touchedAt.localeCompare(a.touchedAt))
       .slice(0, 5),
-    [data.works, handlers.today, viaMap],
+    [data.works, handlers.today, viaMap, courIds],
   );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
   const totals = useMemo(() => summarize(data, "week", handlers.today), [data, handlers.today]);
@@ -158,12 +190,51 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
           <div><dt>種類</dt><dd>{totals.length}</dd></div>
         </dl>
       </section>
-      {courCount > 0 && (
+      {(upcoming.length > 0 || pick) && (
+        <section className="card list-card">
+          <div className="list-head">
+            <h2>楽しみの予定</h2>
+          </div>
+          <ul className="list">
+            {upcoming.map((u) => <UpcomingRow key={`${u.work.id}-${u.volume ?? ""}`} item={u} today={handlers.today} onOpen={handlers.onOpen} />)}
+            {pick && (
+              <li>
+                <button type="button" className="list-row" onClick={() => handlers.onOpen(pick)}>
+                  <CoverImg work={pick} className="cover-thumb record-cover" />
+                  <span className="list-main">
+                    <span className="list-name">{pick.title}</span>
+                    <span className="list-sub"><span className="medium-tag">{mediumTag(pick)}</span>積読から</span>
+                  </span>
+                </button>
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
+      {cour.length > 0 && (
         <section className="card list-card">
           <button type="button" className="list-head link-head" onClick={onGoCour}>
-            <h2>今期（{currentCourName(handlers.today)}）{courCount}作品</h2>
+            <h2>今期のアニメ（{currentCourName(handlers.today)}）{cour.length}作品</h2>
             <Icon name="chevron-right" size={18} />
           </button>
+          {courMain.length > 0 && (
+            <ul className="work-list">
+              {courMain.map((c) => <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />)}
+            </ul>
+          )}
+          {courCaught.length > 0 && (
+            <>
+              <button type="button" className="list-head link-head fold-head" aria-expanded={caughtCourOpen} onClick={() => setCaughtCourOpen(!caughtCourOpen)}>
+                <h2 className="small-h">追いついている（{courCaught.length}作品）</h2>
+                <Icon name={caughtCourOpen ? "chevron-up" : "chevron-down"} size={18} />
+              </button>
+              {caughtCourOpen && (
+                <ul className="work-list">
+                  {courCaught.map((c) => <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />)}
+                </ul>
+              )}
+            </>
+          )}
         </section>
       )}
       <section className="card list-card">
@@ -217,18 +288,17 @@ function MediumChips({ media, value, onChange }: { media: Medium[]; value: Mediu
   );
 }
 
-type ContinueTab = "following" | "reading" | "wish" | "paused";
+type ContinueTab = "current" | "partway" | "planned";
+/** 続きタブの区分（v0.17.0：追っている→現在、これから→予定。中断は途中の一番下にたたむ） */
 const CONTINUE_TABS: { id: ContinueTab; label: string }[] = [
-  { id: "following", label: "追っている" },
-  { id: "reading", label: "途中" },
-  { id: "wish", label: "これから" },
-  { id: "paused", label: "中断" },
+  { id: "current", label: "現在" },
+  { id: "partway", label: "途中" },
+  { id: "planned", label: "予定" },
 ];
 const EMPTY_TEXT: Record<ContinueTab, string> = {
-  following: "追っている作品はありません。放送予定を入れたアニメ・ドラマ、今期の放送中の作品、週刊誌、「続きの巻も買う」の印を付けたマンガがここに並びます。",
-  reading: "途中の作品はありません。読みかけのマンガ、読書中の小説、完結した作品の続きや配信で後から見ている作品がここに並びます。",
-  wish: "予定の作品はありません。",
-  paused: "中断している作品はありません。",
+  current: "いま追っている作品はありません。今期のクール（本放送・再放送）が付いたアニメ・ドラマ、週刊誌、連載中で「続きの巻も買う」マンガ、プレイ中のゲームがここに並びます。",
+  partway: "途中の作品はありません。完結した作品の続き、読みかけのマンガ、読書中の小説、再放送が終わった作品などがここに並びます。",
+  planned: "予定の作品はありません。",
 };
 
 function kanaKey(w: Work): string {
@@ -236,33 +306,36 @@ function kanaKey(w: Work): string {
 }
 
 export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; enabledMedia: Medium[] | null }) {
-  const [tab, setTab] = useState<ContinueTab>("following");
+  const [tab, setTab] = useState<ContinueTab>("current");
   const [medium, setMedium] = useState<Medium | null>(null);
+  const [cafeOnly, setCafeOnly] = useState(false);
   const [caughtUpOpen, setCaughtUpOpen] = useState(false);
+  const [stoppedOpen, setStoppedOpen] = useState(false);
   const live = data.works.filter((w) => w.deletedAt === null);
   const viaMap = useMemo(() => latestViaMap(data.logs), [data.logs]);
-  const inTab = live.filter((w) =>
-    tab === "following" || tab === "reading" ? continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === tab : w.status === (tab === "wish" ? "wish" : "paused"),
-  );
+  const inTab = live.filter((w) => continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === tab);
   const availableMedia = MEDIA.filter((m) => inTab.some((w) => w.medium === m));
   const media = visibleFilterMedia(availableMedia, enabledMedia);
   const selectedMedium = medium !== null && media.includes(medium) ? medium : null;
-  const shown = inTab.filter((w) => selectedMedium === null || w.medium === selectedMedium);
+  // 読む手段が漫喫のものだけに絞る（漫喫で読むものが1つでもあるときだけ出す）
+  const hasCafe = inTab.some((w) => w.access === "manga_cafe");
+  const shown = inTab.filter((w) => (selectedMedium === null || w.medium === selectedMedium) && (!cafeOnly || !hasCafe || w.access === "manga_cafe"));
   const byRecent = (a: Work, b: Work) => b.touchedAt.localeCompare(a.touchedAt);
   let main: Work[];
   let caughtUp: Work[] = [];
-  if (tab === "following") {
-    // やることがある（未消化・未購入）ものを上に。追いついたものはたたむ
-    main = shown.filter((w) => hasNext(w, handlers.today)).sort((a, b) => Number(unpurchasedCount(b) > 0) - Number(unpurchasedCount(a) > 0) || byRecent(a, b));
+  let stopped: Work[] = [];
+  if (tab === "current") {
+    // 見る・読むものがある（未消化がある）ものを上に。追いついたものはたたむ
+    main = shown.filter((w) => hasNext(w, handlers.today)).sort(byRecent);
     caughtUp = shown.filter((w) => !hasNext(w, handlers.today)).sort(byRecent);
-  } else if (tab === "reading") {
-    // 漫画喫茶で探しやすいよう、題名（読み仮名）順
-    main = [...shown].sort((a, b) => kanaKey(a).localeCompare(kanaKey(b), "ja"));
-  } else if (tab === "wish") {
+  } else if (tab === "partway") {
+    // 漫画喫茶で探しやすいよう、題名（読み仮名）順。中断は一番下に「やめたもの」としてたたむ
+    const byKana = (a: Work, b: Work) => kanaKey(a).localeCompare(kanaKey(b), "ja");
+    main = shown.filter((w) => w.status !== "paused").sort(byKana);
+    stopped = shown.filter((w) => w.status === "paused").sort(byKana);
+  } else {
     // 積読（予定＋所持）を先に
     main = [...shown].sort((a, b) => Number(isTsundoku(b)) - Number(isTsundoku(a)) || byRecent(a, b));
-  } else {
-    main = [...shown].sort(byRecent);
   }
   return (
     <>
@@ -274,13 +347,20 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
         ))}
       </div>
       <MediumChips media={media} value={selectedMedium} onChange={setMedium} />
-      {main.length === 0 && caughtUp.length === 0 ? (
-        <Empty text={EMPTY_TEXT[tab]} onAdd={tab === "paused" ? undefined : onAdd} />
+      {hasCafe && (
+        <div className="chips">
+          <button type="button" className={`chip${cafeOnly ? " on" : ""}`} aria-pressed={cafeOnly} onClick={() => setCafeOnly(!cafeOnly)}>
+            漫喫で読む
+          </button>
+        </div>
+      )}
+      {main.length === 0 && caughtUp.length === 0 && stopped.length === 0 ? (
+        <Empty text={EMPTY_TEXT[tab]} onAdd={onAdd} />
       ) : (
         <>
           {main.length > 0 && (
             <section className="card list-card">
-              {tab === "reading" && <p className="muted small pad">{main.length}作品（題名順）</p>}
+              {tab === "partway" && <p className="muted small pad">{main.length}作品（題名順）</p>}
               <ul className="work-list">
                 {main.map((w) => (
                   <WorkCard key={w.id} work={w} {...handlers} />
@@ -288,7 +368,7 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
               </ul>
             </section>
           )}
-          {main.length === 0 && tab === "following" && <p className="muted small center">いま見る・読むものはありません。</p>}
+          {main.length === 0 && tab === "current" && <p className="muted small center">いま見る・読むものはありません。</p>}
           {caughtUp.length > 0 && (
             <section className="card list-card">
               <button type="button" className="list-head link-head" aria-expanded={caughtUpOpen} onClick={() => setCaughtUpOpen(!caughtUpOpen)}>
@@ -298,6 +378,21 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
               {caughtUpOpen && (
                 <ul className="work-list">
                   {caughtUp.map((w) => (
+                    <WorkCard key={w.id} work={w} {...handlers} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+          {stopped.length > 0 && (
+            <section className="card list-card">
+              <button type="button" className="list-head link-head" aria-expanded={stoppedOpen} onClick={() => setStoppedOpen(!stoppedOpen)}>
+                <h2>やめたもの {stopped.length}件</h2>
+                <Icon name={stoppedOpen ? "chevron-up" : "chevron-down"} size={18} />
+              </button>
+              {stoppedOpen && (
+                <ul className="work-list">
+                  {stopped.map((w) => (
                     <WorkCard key={w.id} work={w} {...handlers} />
                   ))}
                 </ul>

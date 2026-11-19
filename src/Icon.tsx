@@ -82,6 +82,14 @@ const ICONS = {
       <path d="m22 7-8.5 8.5-5-5L2 17" />
     </>
   ),
+  // 購入タブ（Lucide の shopping-bag）
+  "shopping-bag": (
+    <>
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </>
+  ),
   wallet: (
     <>
       <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />

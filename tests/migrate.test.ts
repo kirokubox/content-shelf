@@ -87,21 +87,24 @@ test("購入：所持・購入予定・読む見る手段。両方当てはま�
   const { data, report } = migrate();
   const d = byTitle(data, "架空マンガD");
   assert.equal(d.purchase.stage, "owned");
-  assert.deepEqual(d.owned?.ranges, [{ from: 1, to: 3, medium: "paper" }]);
+  assert.deepEqual(d.owned?.ranges, [{ from: 1, to: 3, medium: "paper", store: null }]);
   assert.equal(d.purchase.format, "paper");
   assert.equal(d.memo, "全巻購入予定");
   assert.ok(report.manual.some((m) => m.title === "架空マンガD"));
   const e = byTitle(data, "架空マンガE");
-  assert.equal(e.access, "jump_plus");
+  // v0.17.0 以降は、版1から読んでも 電子・ジャンプ＋ になる
+  assert.equal(e.access, "digital");
+  assert.equal(e.accessStore, "jump_plus");
   assert.equal(e.purchase.stage, "none");
   assert.equal(byTitle(data, "架空マンガF").purchase.stage, "planned");
   assert.equal(byTitle(data, "架空マンガF").memo, "購入予定");
-  assert.deepEqual(byTitle(data, "架空小説G").purchase, { stage: "owned", format: "bunko" });
-  assert.deepEqual(byTitle(data, "架空LIVE映像H").purchase, { stage: "owned", format: "bluray" });
+  assert.deepEqual(byTitle(data, "架空小説G").purchase, { stage: "owned", format: "bunko", store: null });
+  assert.deepEqual(byTitle(data, "架空LIVE映像H").purchase, { stage: "owned", format: "bluray", store: null });
   const j = byTitle(data, "架空イベントJ");
   assert.equal(j.access, "streaming");
   assert.equal(j.purchase.stage, "none");
-  assert.equal(byTitle(data, "架空マンガM").owned?.ranges[0].medium, "kindle");
+  assert.equal(byTitle(data, "架空マンガM").owned?.ranges[0].medium, "digital");
+  assert.equal(byTitle(data, "架空マンガM").owned?.ranges[0].store, "kindle");
   assert.deepEqual(report.purchase, { none: 9, planned: 1, reserved: 0, owned: 4 });
   assert.deepEqual(report.access, { jump_plus: 1, streaming: 1 });
   // 置き場所・買う印・親作品・人物は残る
@@ -126,17 +129,17 @@ test("版1のバックアップを読み込むと、移し替えてから取り�
   assert.equal(v1.data.works.length, 14);
   assert.equal(byTitle(v1.data, "架空アニメA").workState, "ongoing");
   assert.equal(v1.data.logs[0].via, "broadcast");
-  // 書き出すと版2になり、そのまま読み戻せる（移し替えは起きない）
+  // 書き出すと版3になり、そのまま読み戻せる（移し替えは起きない）
   const out = buildBackup(v1.data, "2026-11-18T00:00:00.000Z");
-  assert.equal(out.version, 2);
+  assert.equal(out.version, 3);
   const v2 = parseBackup(JSON.stringify(out));
   assert.ok(v2.ok);
   if (!v2.ok) return;
   assert.equal(v2.migration, null);
   assert.deepEqual(v2.data.works, v1.data.works);
   assert.deepEqual(v2.data.logs, v1.data.logs);
-  // 版3以降・形が崩れた版2は読まない
-  assert.equal(parseBackup(JSON.stringify({ ...out, version: 3 })).ok, false);
+  // 版4以降・形が崩れた版3は読まない
+  assert.equal(parseBackup(JSON.stringify({ ...out, version: 4 })).ok, false);
   const broken = JSON.parse(JSON.stringify(out));
   delete broken.works[0].workState;
   assert.equal(parseBackup(JSON.stringify(broken)).ok, false);

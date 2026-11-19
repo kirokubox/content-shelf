@@ -10,8 +10,11 @@ export type ProgressKind = "episode" | "issue" | "volume" | "none";
 export const WORK_STATUSES = ["active", "paused", "wish", "done"] as const;
 export type WorkStatus = (typeof WORK_STATUSES)[number];
 
-/** マンガの巻の範囲ごとの形（紙／Kindle）。null＝不明 */
-export type RangeMedium = "paper" | "kindle" | null;
+/** マンガの巻の範囲ごとの形（紙／電子）。null＝不明。電子のときは store（Kindle・ジャンプ＋・その他）を持つ（v0.17.0） */
+export type RangeMedium = "paper" | "digital" | null;
+/** 電子のときの2段目（どこで買った・読むか） */
+export type DigitalStore = "kindle" | "jump_plus" | "other";
+export const DIGITAL_STORES = ["kindle", "jump_plus", "other"] as const;
 /** 作品の状態（作品側の事実）。null＝分からない。単発ものは upcoming か finished だけ（v0.16.0） */
 export type WorkState = "upcoming" | "ongoing" | "finished" | null;
 export const WORK_STATES = ["upcoming", "ongoing", "finished"] as const;
@@ -26,15 +29,32 @@ export interface Cour {
 /** 購入の段階（ゆきとの関係とは別の軸） */
 export type PurchaseStage = "none" | "planned" | "reserved" | "owned";
 export const PURCHASE_STAGES = ["none", "planned", "reserved", "owned"] as const;
-/** 購入の形：マンガ＝紙／Kindle、小説＝単行本・文庫・電子、映像・イベント＝BD／DVD、ゲーム＝パッケージ／ダウンロード */
-export type PurchaseFormat = "paper" | "kindle" | "tankobon" | "bunko" | "tankobon_bunko" | "ebook" | "bluray" | "dvd" | "package" | "download";
-export const PURCHASE_FORMATS = ["paper", "kindle", "tankobon", "bunko", "tankobon_bunko", "ebook", "bluray", "dvd", "package", "download"] as const;
+/** 購入の形：マンガ＝紙／電子（＋store）、小説＝単行本・文庫・電子、映像・イベント＝BD／DVD、ゲーム＝パッケージ／ダウンロード。v0.16の kindle は digital＋kindle へ移した */
+export type PurchaseFormat = "paper" | "digital" | "tankobon" | "bunko" | "tankobon_bunko" | "ebook" | "bluray" | "dvd" | "package" | "download";
+export const PURCHASE_FORMATS = ["paper", "digital", "tankobon", "bunko", "tankobon_bunko", "ebook", "bluray", "dvd", "package", "download"] as const;
 export interface Purchase {
   stage: PurchaseStage;
   format: PurchaseFormat | null;
+  /** format が digital のときの2段目（v0.17.0） */
+  store: DigitalStore | null;
 }
-/** 読む・見る手段（購入とは別）。jump_plus＝ジャンプ＋で読む、streaming＝配信で見る */
-export type Access = "jump_plus" | "streaming" | null;
+/**
+ * 読む・見る手段（購入とは別）。paper＝紙、digital＝電子（accessStore で Kindle・ジャンプ＋・その他）、manga_cafe＝漫喫、streaming＝配信で見る。
+ * v0.16の jump_plus は digital＋jump_plus へ移した（v0.17.0）
+ */
+export type Access = "paper" | "digital" | "manga_cafe" | "streaming" | null;
+export const ACCESSES = ["paper", "digital", "manga_cafe", "streaming"] as const;
+/** 日付と細かさ（楽しみの日。記録の日付と同じ考え方で、日・月だけ・年だけ） */
+export interface FuzzyDate {
+  /** YYYY-MM-DD（月だけは YYYY-MM-01、年だけは YYYY-01-01） */
+  date: string;
+  precision: "day" | "month" | "year";
+}
+/** マンガの巻ごとの楽しみの日（予約中の巻・買う予定の巻の発売日） */
+export interface VolumeDate {
+  volume: number;
+  date: FuzzyDate;
+}
 /** 記録ごとの視聴手段 */
 export type LogVia = "broadcast" | "rerun" | "streaming" | "disc" | "recording" | "venue";
 export const LOG_VIAS = ["broadcast", "rerun", "streaming", "disc", "recording", "venue"] as const;
@@ -46,8 +66,10 @@ export type PaperPlace = "home" | "parents_home" | "both" | "unknown" | null;
 export interface VolumeRange {
   from: number;
   to: number;
-  /** 範囲ごとの紙／Kindle（無ければ不明） */
+  /** 範囲ごとの紙／電子（無ければ不明） */
   medium?: RangeMedium;
+  /** 電子のときの2段目 */
+  store?: DigitalStore | null;
 }
 
 export interface Base {
@@ -85,6 +107,8 @@ export interface Ownership {
   /** 予約中の巻（買った巻とは別。v0.16.0） */
   reserved: VolumeRange[];
   place: PaperPlace;
+  /** 巻ごとの楽しみの日（発売日。v0.17.0） */
+  volumeDates: VolumeDate[];
 }
 
 export interface Work extends Base {
@@ -116,8 +140,14 @@ export interface Work extends Base {
   edition: string;
   /** 購入（段階と形）。ゆきとの関係（status）とは別 */
   purchase: Purchase;
-  /** 読む・見る手段（ジャンプ＋・配信） */
+  /** 読む・見る手段（紙・電子・漫喫・配信） */
   access: Access;
+  /** access が digital のときの2段目（v0.17.0） */
+  accessStore: DigitalStore | null;
+  /** 楽しみの日（発売日・公開日・開催日・放送開始日。アニメ・ドラマで放送予定があるときは放送予定の初回を使う。v0.17.0） */
+  expect: FuzzyDate | null;
+  /** ホームに出す積読（全体で1冊だけ。v0.17.0） */
+  homePick: boolean;
   externalIds: { anilist?: number; mangaShelf?: string };
   coverUrl: string | null;
   /** 自分で撮った表紙の写真（photos ストアの id）。coverUrl より優先して出す（v0.9.0） */
@@ -150,8 +180,10 @@ export interface Work extends Base {
 }
 
 export type ClearLevel = "clear" | "complete" | "partway" | null;
-/** 記録の日付の細かさ。year＝年だけ（date は YYYY-01-01）、month＝年月だけ（YYYY-MM-01） */
-export type DatePrecision = "day" | "month" | "year";
+/** 記録の日付の細かさ。year＝年だけ（date は YYYY-01-01）、month＝年月だけ（YYYY-MM-01）、unknown＝日付不明（date は 1900-01-01。v0.17.0） */
+export type DatePrecision = "day" | "month" | "year" | "unknown";
+/** 日付不明の記録に入れておく日付 */
+export const UNKNOWN_DATE = "1900-01-01";
 
 /** progress＝続きを1つ進めた記録、view＝見た・読んだ・参加した記録（映画・小説など） */
 export type LogKind = "progress" | "view";
@@ -195,8 +227,8 @@ export interface DataSet {
 
 export interface BackupFile extends DataSet {
   app: "content-shelf";
-  /** 2＝v0.16.0以降の形。1は読み込み時に移し替える */
-  version: 1 | 2;
+  /** 3＝v0.17.0以降の形。1・2は読み込み時に移し替える */
+  version: 1 | 2 | 3;
   exportedAt: string;
 }
 

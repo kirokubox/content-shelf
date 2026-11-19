@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { CoverImg } from "./CoverImg";
-import { ACCESS_LABEL, CLEAR_LABEL, PURCHASE_FORMAT_LABEL, PURCHASE_STAGE_LABEL, UNIT_LABEL, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, workPeopleLabel, workStateWord, workStatusWord } from "./constants";
+import { CLEAR_LABEL, PURCHASE_STAGE_LABEL, UNIT_LABEL, accessText, expectLabel, purchaseFormatText, WEEKDAY_LABEL, doneWord, hasOngoingStatus, mediumTag, workPeopleLabel, workStateWord, workStatusWord } from "./constants";
 import { canAddCurrentRerun, formatCour, subLabel, viaPlaceText } from "./courLogic";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
-import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, roundsLabel, unconsumedCount, unpurchasedCount } from "./progressLogic";
+import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
+import { formatFuzzy, workExpect } from "./expectLogic";
+import { unboughtVolumes, volumesText } from "./purchaseLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesDetailText, rangesText } from "./WorkEditor";
@@ -27,7 +29,10 @@ interface Props {
   onEditLog: (log: Log) => void;
   onSetStatus: (status: WorkStatus) => void;
   onDelete: () => void;
-  onBought: () => void;
+  /** マンガの巻を選んで「買った」「予約した」 */
+  onPickVolumes: (mode: "buy" | "reserve") => void;
+  /** ホームに出す積読にする（1冊だけ）／外す */
+  onToggleHomePick: () => void;
   onNewVolume: () => void;
   onStartAgain: () => void;
   /** 今期の再放送のクールを足す（アニメ・ドラマ） */
@@ -44,8 +49,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onBought, onNewVolume, onStartAgain, onAddRerun }: Props) {
-  const unpurchased = unpurchasedCount(work);
+export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onPickVolumes, onToggleHomePick, onNewVolume, onStartAgain, onAddRerun }: Props) {
+  const unbought = unboughtVolumes(work);
   const gaps = ownedGapSummary(work);
   const [menu, setMenu] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
@@ -82,6 +87,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     else statusItems.push({ label: `${workStatusWord(work, "wish")}に戻す`, onClick: () => onSetStatus("wish") });
   }
   if (work.status !== "wish" && kind !== "none") statusItems.push({ label: `${workStatusWord(work, "wish")}にする`, onClick: () => onSetStatus("wish") });
+  if (isTsundoku(work)) statusItems.push({ label: work.homePick ? "ホームに出す積読から外す" : "ホームに出す積読にする", onClick: onToggleHomePick });
   statusItems.push({ label: "作品を削除", danger: true, onClick: onDelete });
 
   const schedule = work.schedule;
@@ -91,13 +97,16 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const showProgress = (kind === "episode" || kind === "volume") && !(work.status === "done" && work.progress === null);
   const pct = available ? Math.min(100, Math.round(((work.progress ?? 0) / available) * 100)) : 0;
   const placeText = work.owned?.place ? PLACE_LABEL[work.owned.place] : null;
-  const purchaseText = work.purchase.stage === "none" ? null : PURCHASE_STAGE_LABEL[work.purchase.stage] + (work.purchase.format ? `（${PURCHASE_FORMAT_LABEL[work.purchase.format]}）` : "") + (work.shelfPlace ? `（${PLACE_LABEL[work.shelfPlace]}）` : "");
+  const formatText = purchaseFormatText(work.purchase.format, work.purchase.store);
+  const purchaseText = work.purchase.stage === "none" ? null : PURCHASE_STAGE_LABEL[work.purchase.stage] + (formatText ? `（${formatText}）` : "") + (work.shelfPlace ? `（${PLACE_LABEL[work.shelfPlace]}）` : "");
+  const expect = workExpect(work);
+  const volumeDates = work.owned?.volumeDates ?? [];
   const showCours = work.cours.length > 0;
   const canRerun = (work.medium === "anime" || work.medium === "drama") && canAddCurrentRerun(work, today);
   // 週刊誌：記録の並びを年ごとに区切る（データは変えない）
   const yearOf = (l: Log) => l.date.slice(0, 4);
   const doneAt = kind !== "none" && work.status === "done" && work.completedAt ? work.completedAt : null;
-  const hasInfo = Boolean(work.platform || work.clearLevel || schedule || work.buying || work.owned?.ranges.length || work.owned?.reserved.length || purchaseText || work.access || work.edition || work.workState || showCours || work.partLabel || doneAt || people.length > 0 || work.memo);
+  const hasInfo = Boolean(work.platform || work.clearLevel || schedule || work.buying || work.owned?.ranges.length || work.owned?.reserved.length || purchaseText || work.access || expect || volumeDates.length || work.edition || work.workState || showCours || work.partLabel || doneAt || people.length > 0 || work.memo);
   return (
     <Screen
       title={work.title}
@@ -127,6 +136,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               {isWaitingForNewVolume(work, today) && <span className="status-pill s-waiting">新刊待ち</span>}
               {isTsundoku(work) && <span className="status-pill s-waiting">積読</span>}
               {work.rounds >= 2 && <span className="status-pill s-waiting">{roundsLabel(work)}</span>}
+              {work.homePick && isTsundoku(work) && <span className="status-pill s-waiting">ホームに出す積読</span>}
               {work.isOriginal && <span className="status-pill s-original">原作</span>}
             </div>
             {franchise && (
@@ -176,10 +186,11 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           {canRerun && (
             <button type="button" className="secondary-btn" onClick={onAddRerun}>今期の再放送を足す</button>
           )}
-          {work.medium === "manga" && work.buying && (
+          {work.medium === "manga" && work.buying && <button type="button" className="secondary-btn" onClick={onNewVolume}>新刊が出た</button>}
+          {work.medium === "manga" && (
             <>
-              <button type="button" className="secondary-btn" onClick={onNewVolume}>新刊が出た</button>
-              {unpurchased > 0 && <button type="button" className="secondary-btn" onClick={onBought}>1巻買った</button>}
+              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("buy")}>買った巻を選ぶ</button>
+              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("reserve")}>予約した巻を選ぶ</button>
             </>
           )}
           {readingNovel ? (
@@ -202,13 +213,15 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           <Row label="作品" value={work.workState ? workStateWord(work.medium, work.workState) : null} />
           <Row label="クール" value={showCours ? work.cours.map(formatCour).join("、") : null} />
           <Row label="期・編・巻" value={work.partLabel} />
-          <Row label="新刊" value={work.buying ? (unpurchased > 0 ? `買う・未購入 ${unpurchased}巻` : "買う・買い終わっている") : null} />
+          <Row label={expectLabel(work.medium)} value={expect ? formatFuzzy(expect, today) : null} />
+          <Row label="新刊" value={work.buying ? (unbought.length > 0 ? `続きの巻も買う・まだ買っていない ${volumesText(unbought)}巻` : "続きの巻も買う・買い終わっている") : null} />
           <Row label="購入" value={purchaseText} />
           <Row label="所持の巻" value={work.owned?.ranges.length ? `${rangesDetailText(work.owned.ranges)}巻` : null} />
           <Row label="予約済の巻" value={work.owned?.reserved.length ? `${rangesText(work.owned.reserved)}巻` : null} />
+          <Row label="巻ごとの発売日" value={volumeDates.length ? volumeDates.map((v) => `${v.volume}巻 ${formatFuzzy(v.date, today)}`).join("、") : null} />
           <Row label="抜け" value={gaps.count > 0 ? `${gaps.count}巻（${gaps.text}）` : null} />
           <Row label="置き場所" value={placeText} />
-          <Row label="手段" value={work.access ? ACCESS_LABEL[work.access] : null} />
+          <Row label={work.medium === "manga" ? "読む手段" : "見る手段"} value={work.access ? accessText(work.access, work.accessStore) : null} />
           <Row label="版" value={work.edition} />
           <Row label="ハード" value={work.platform} />
           <Row label="どこまで" value={work.clearLevel ? CLEAR_LABEL[work.clearLevel] : null} />

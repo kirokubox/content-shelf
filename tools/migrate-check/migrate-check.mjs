@@ -1,11 +1,11 @@
-// 版1のバックアップ（JSON）を、版2の形へ移し替えるときの結果だけを見る確認用スクリプト。
+// 版1・版2のバックアップ（JSON）を、版3（v0.17.0）の形へ移し替えるときの結果だけを見る確認用スクリプト。
 // 使い方（リポジトリ直下で）：
 //   npm run migrate:check -- <版1のバックアップJSONのパス> [--out <書き出し先のパス>]
 // 何も書き込まない（--out を付けたときだけ、移し替えたあとのJSONを指定先へ書く）。
 // 実データのバックアップをこのリポジトリの中に置かないこと（作業場の外のパスを渡す）。
 import { readFileSync, writeFileSync } from "node:fs";
 import { buildBackup, parseBackup } from "../../.test-build/src/backup.js";
-import { describeMigration } from "../../.test-build/src/migrate.js";
+import { describeMigration, describeMigrationV3 } from "../../.test-build/src/migrate.js";
 
 const args = process.argv.slice(2);
 const outIndex = args.indexOf("--out");
@@ -22,12 +22,17 @@ if (!r.ok) {
   console.error(`読めませんでした：${r.error}`);
   process.exit(1);
 }
-if (!r.migration) {
-  console.log("このファイルはすでに版2の形です（移し替えは不要）。");
+if (!r.migration && !r.migrationV3) {
+  console.log("このファイルはすでに版3の形です（移し替えは不要）。");
   process.exit(0);
 }
-console.log("版1 → 版2 の移し替え結果（件数は前→後）");
-for (const line of describeMigration(r.migration)) console.log(line);
+if (r.migration) {
+  console.log("版1 → 版3 の移し替え結果（件数は前→後）");
+  for (const line of describeMigration(r.migration)) console.log(line);
+} else {
+  console.log("版2 → 版3 の移し替え結果（件数は前→後）");
+  for (const line of describeMigrationV3(r.migrationV3)) console.log(line);
+}
 if (out) {
   const photos = JSON.parse(text).photos;
   const file = { ...buildBackup(r.data, r.exportedAt || new Date().toISOString()), ...(Array.isArray(photos) ? { photos } : {}) };

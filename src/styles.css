@@ -647,3 +647,18 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .range-sep { color: var(--kb-text-3); }
 .cour-add { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--kb-space-2); align-items: center; }
 .year-head { padding: var(--kb-space-2) var(--kb-space-3); font-size: var(--kb-fs-s); font-weight: 700; color: var(--kb-text-2); background: var(--kb-surface-2); }
+
+/* 購入画面（v0.17.0） */
+.purchase-actions { display: flex; gap: var(--kb-space-2); margin: 2px 0 var(--kb-space-1) var(--kb-space-4); flex-wrap: wrap; }
+.purchase-actions .buy-btn, .purchase-actions .small-btn { min-height: 36px; }
+.purchase-line { min-width: 0; overflow-wrap: anywhere; }
+.purchase-card .work-sub { flex-wrap: wrap; }
+.overdue-card { border: 1px solid var(--kb-warning); }
+.overdue-head { margin: 0; color: var(--kb-warning); font-weight: 700; }
+.overdue-note { color: var(--kb-warning); font-weight: 700; flex-wrap: wrap; }
+.vol-chips { max-height: 40vh; overflow-y: auto; }
+.vol-quick { display: flex; gap: var(--kb-space-3); margin-top: var(--kb-space-1); }
+.vol-input { max-width: 64px; }
+/* ホームの今期のアニメで、追いついた作品のたたみ */
+.fold-head { border-top: 1px solid var(--kb-line); }
+.small-h { font-size: var(--kb-fs-s); color: var(--kb-text-2); }

@@ -2,8 +2,8 @@
 // 外部情報なしで動く（仕様181 §5.1）。かぞえ帳の「毎週たまる」と同じ考え方。
 import { PROGRESS_KIND } from "./constants.js";
 import { addDays, nowIso } from "./dateUtils.js";
-import { courPeriodOf, hasCourIn } from "./courLogic.js";
-import type { Log, LogVia, ProgressKind, RangeMedium, VolumeRange, WeeklySchedule, Work } from "./types.js";
+import { addCour, courPeriodOf, currentRerun, hasCourIn } from "./courLogic.js";
+import type { DigitalStore, Log, LogVia, ProgressKind, RangeMedium, VolumeRange, WeeklySchedule, Work } from "./types.js";
 
 export function progressKindOf(work: Pick<Work, "medium">): ProgressKind {
   return PROGRESS_KIND[work.medium];
@@ -197,17 +197,18 @@ export function removeVolume(ranges: VolumeRange[], n: number): VolumeRange[] {
 
 /** 「買った」：持っている巻の次の1巻を足す（範囲がつながっていて形も同じならのばす）。購入の段階は「所持」にする */
 export function markBoughtNext(work: Work, now: string = nowIso()): Work {
-  const owned = work.owned ?? { known: true, ranges: [], reserved: [], place: null };
+  const owned = work.owned ?? { known: true, ranges: [], reserved: [], place: null, volumeDates: [] };
   const next = ownedMax(work) + 1;
   const ranges = owned.ranges.map((r) => ({ ...r }));
   const lastRange = ranges.find((r) => r.to === next - 1);
   const fmt = work.purchase.format;
-  const medium: RangeMedium = fmt === "paper" || fmt === "kindle" ? fmt : (lastRange?.medium ?? null);
-  if (lastRange && (lastRange.medium ?? null) === medium) lastRange.to = next;
-  else ranges.push({ from: next, to: next, medium });
+  const medium: RangeMedium = fmt === "paper" || fmt === "digital" ? fmt : (lastRange?.medium ?? null);
+  const store: DigitalStore | null = medium !== "digital" ? null : fmt === "digital" ? work.purchase.store : (lastRange?.store ?? null);
+  if (lastRange && (lastRange.medium ?? null) === medium && (lastRange.store ?? null) === store) lastRange.to = next;
+  else ranges.push({ from: next, to: next, medium, store });
   return {
     ...work,
-    owned: { ...owned, known: true, ranges, reserved: removeVolume(owned.reserved, next) },
+    owned: { ...owned, known: true, ranges, reserved: removeVolume(owned.reserved, next), volumeDates: owned.volumeDates.filter((v) => v.volume !== next) },
     purchase: { ...work.purchase, stage: "owned" },
     updatedAt: now,
     touchedAt: now,
@@ -220,7 +221,8 @@ export function markNewVolume(work: Work, now: string = nowIso()): Work {
   return withAutoStatus({ ...work, latestKnown: base + 1, workState: work.workState === "finished" ? "ongoing" : work.workState, updatedAt: now, touchedAt: now }, now);
 }
 
-export type ContinueGroup = "following" | "reading";
+/** 続きタブの区分（v0.17.0）：現在／途中／予定。中断（休止）は「途中」の一番下にたたむ（区分としては出さない） */
+export type ContinueGroup = "current" | "partway" | "planned";
 
 export interface ContinueContext {
   today: string;
@@ -229,29 +231,33 @@ export interface ContinueContext {
 }
 
 /**
- * 続きタブの置き場（2026-11-18 状態の設計を作品の状態ベースに直した）。
- * 追っている（following）＝アニメ・ドラマは「放送予定が入っている」か「放送中で今期のクールが付いていて、最新の記録が配信でない」もの。
- * 週刊誌・「続きの巻も買う」マンガ・プレイ中のゲームはそのまま追っている。
- * 途中（reading）＝追っているに入らない進行中すべて（完結した作品の続き、配信で後から追っている作品、読みかけのマンガ、読書中の小説）。
- * 進行中でないもの・続きも途中も持たないものは null。予定（これから）と中断は状態で分ける
+ * 続きタブの区分（2026-11-19 v0.17.0 で3つに分け直した。見る・読む・遊ぶの進み具合だけで決め、購入では決めない）。
+ * 現在（current）＝作品が進行中で、今追っているもの：
+ *   アニメ・ドラマ＝放送予定が入っていて完結していない、または今期のクール（本放送で放送中・再放送）が付いていて最新の記録が配信でない
+ *   週刊誌、連載中（完結していない）で「続きの巻も買う」マンガ、プレイ中のゲーム
+ * 途中（partway）＝関係が進行中で、現在に入らないもの全部（完結した作品・過去作品・再放送が終わった作品・読書中の小説など）。中断もここ（画面で一番下にたたむ）
+ * 予定（planned）＝関係が予定のもの。済は null
  */
 export function continueGroup(work: Work, ctx: ContinueContext = { today: "9999-12-31", latestVia: null }): ContinueGroup | null {
-  // 読了・積読・中断でも、買う新刊が残っているマンガは「追っている」に出す。状態自体は変えない。
-  if (work.medium === "manga" && work.buying && unpurchasedCount(work) > 0) return "following";
-  if (work.status !== "active") return null;
-  // プレイ中のゲーム（ポケポケなど）は「追っている」に並べる
-  if (work.medium === "game") return "following";
-  // 小説は巻を数えないが、読みかけを置ける
-  if (work.medium === "novel") return "reading";
-  const kind = progressKindOf(work);
-  if (kind === "none") return null;
-  if (work.medium === "manga") return work.buying ? "following" : "reading";
-  if (kind === "episode") {
-    if (work.schedule) return "following";
-    if (work.workState === "ongoing" && hasCourIn(work, courPeriodOf(ctx.today)) && ctx.latestVia !== "streaming") return "following";
-    return "reading";
+  if (work.status === "done") return null;
+  if (work.status === "wish") return "planned";
+  if (work.status === "paused") return "partway";
+  if (work.medium === "game" || work.medium === "magazine") return "current";
+  if (work.medium === "manga") return work.buying && work.workState !== "finished" ? "current" : "partway";
+  if (progressKindOf(work) === "episode") {
+    if (work.schedule && work.workState !== "finished") return "current";
+    const period = courPeriodOf(ctx.today);
+    const rerun = hasCourIn(work, period, "rerun");
+    const airing = hasCourIn(work, period, "original") && work.workState === "ongoing";
+    if ((rerun || airing) && ctx.latestVia !== "streaming") return "current";
+    return "partway";
   }
-  return "following";
+  return "partway";
+}
+
+/** 中断（休止）か。途中の一番下に「やめたもの」としてたたむ */
+export function isStopped(work: Pick<Work, "status">): boolean {
+  return work.status === "paused";
 }
 
 /** 積読：予定（まだ読み始めていない）で、手元にある（購入の段階が所持）。表示だけの自動判定 */
@@ -274,9 +280,20 @@ export function isWaitingForNewVolume(work: Work, today: string): boolean {
   return available !== null && available > 0 && work.progress === available;
 }
 
-/** 次にやることがある（未消化・未購入がある）か */
+/** 次に見る・読むものがある（未消化がある）か。購入は購入画面で扱うので見ない（v0.17.0） */
 export function hasNext(work: Work, today: string): boolean {
-  return (unconsumedCount(work, today) ?? 0) > 0 || unpurchasedCount(work) > 0;
+  return (unconsumedCount(work, today) ?? 0) > 0;
+}
+
+/**
+ * 今期の再放送の印をつける（v0.17.0）。すでに済（見終えた）の作品なら、2周目以降として最初から（周回数を1つ増やす）。
+ * 済でなければ1周目のまま、予定・中断は進行中にする（今期のアニメと「現在」に出すため）
+ */
+export function addCurrentRerun(work: Work, today: string, now: string = nowIso()): Work {
+  const cours = addCour(work.cours, currentRerun(today));
+  const finishedBefore = work.status === "done" || work.completedAt !== null;
+  if (finishedBefore) return { ...startAgain(work, now), cours };
+  return { ...work, cours, status: "active", updatedAt: now, touchedAt: now };
 }
 
 /** 再読・再視聴：記録はそのまま、位置を最初に戻して進行中へ */

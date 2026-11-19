@@ -66,7 +66,7 @@ export function LogSheet({ work, logs, log, today, newKind, onClose, onSave, onD
     <BottomSheet title={title} onClose={onClose}>
       <div className="form compact">
         <div className="two-col">
-          <DateField label="日付" value={dateText} precision={precision} today={today} onChange={(v, p: PrecisionChoice) => { setDateText(v); if (p !== "none") setPrecision(p); }} />
+          <DateField label="日付" value={dateText} precision={precision} today={today} allowDateUnknown={!isProgress || precision === "unknown"} onChange={(v, p: PrecisionChoice) => { setDateText(v); if (p !== "none") setPrecision(p); }} />
           {showPosition ? (
             <label className="field">
               <span className="field-label">{kind === "episode" ? "第何話" : "何巻"}</span>

@@ -41,5 +41,5 @@ test("古い作品に新しい項目を補う・ゲームの状態の名前", ()
   assert.equal(statusWord("game", "active"), "プレイ中");
   assert.equal(statusWord("manga", "wish"), "読書予定");
   assert.equal(statusWord("movie", "done"), "視聴済");
-  assert.equal(continueGroup({ ...emptyWork("game", NOW), status: "active" }), "following");
+  assert.equal(continueGroup({ ...emptyWork("game", NOW), status: "active" }), "current");
 });

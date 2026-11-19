@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { subLabel } from "./courLogic";
 import { CoverImg } from "./CoverImg";
 import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
+import { expectVerb, formatFuzzy, workExpect } from "./expectLogic";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
@@ -49,6 +50,8 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
   const press = useLongPress(() => onStep(work), () => onStepWithDate(work));
   const position = kind === "issue" && work.readThrough ? `${formatDateShort(work.readThrough)}発売の号まで` : positionLabel(work);
   const latest = latestLabel(work, today);
+  // 楽しみの日（開催・公開・発売・放送開始）。済の作品には出さない
+  const expect = work.status !== "done" ? workExpect(work) : null;
   return (
     <li className="work-card">
       <CoverImg work={work} className="cover-thumb card-cover" onClick={() => onOpen(work)} />
@@ -63,7 +66,9 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
             {[position, latest].filter(Boolean).join("・")}
           </span>
           <span className="work-sub dim">
-            最終 {formatDateShort(isoToDateKey(work.touchedAt))}
+            {/* 予定の作品は「いつ登録したか」、それ以外は最後に触った日 */}
+            {work.status === "wish" ? `登録 ${formatDateShort(isoToDateKey(work.createdAt))}` : `最終 ${formatDateShort(isoToDateKey(work.touchedAt))}`}
+            {expect && <span className="expect-note">{expectVerb(work.medium)} {formatFuzzy(expect, today)}</span>}
             {isWaitingForNewVolume(work, today) && <span className="wait-note">新刊待ち</span>}
             {isTsundoku(work) && <span className="wait-note">積読</span>}
             {rerun && <span className="wait-note">再放送</span>}

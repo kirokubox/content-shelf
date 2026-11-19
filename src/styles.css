@@ -662,3 +662,7 @@ select.text-input { padding: 0 var(--kb-space-2); }
 /* ホームの今期のアニメで、追いついた作品のたたみ */
 .fold-head { border-top: 1px solid var(--kb-line); }
 .small-h { font-size: var(--kb-fs-s); color: var(--kb-text-2); }
+
+/* カードの楽しみの日（v0.17.1） */
+.expect-note { color: var(--kb-accent-strong); font-weight: 700; margin-left: 6px; }
+.work-sub.dim { flex-wrap: wrap; row-gap: 2px; }

@@ -57,6 +57,8 @@ export function emptyWork(medium: Medium, now: string = nowIso()): Work {
     shelfPlace: null,
     eventKind: medium === "live" ? "live" : null,
     coverPhotoId: null,
+    airSlot: null,
+    relatedLiveIds: [],
   };
 }
 

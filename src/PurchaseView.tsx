@@ -9,6 +9,7 @@ import { SegRow } from "./formParts";
 import { visibleFilterMedia } from "./mediaPrefs";
 import { defaultShape, purchaseList, unboughtVolumes, volumeList, volumesText } from "./purchaseLogic";
 import { SortControl, useSortPref } from "./SortControl";
+import { ScrollHideBar } from "./ScrollHideBar";
 import { sortItems } from "./sortLogic";
 import type { SortScope } from "./sortLogic";
 import type { PurchaseItem, PurchaseTab, Shape } from "./purchaseLogic";
@@ -69,7 +70,7 @@ function PurchaseRow({ item, tab, today, handlers }: { item: PurchaseItem; tab: 
           {item.date && (
             <span className={`work-sub${item.overdue ? " overdue-note" : " dim"}`}>
               {expectLabel(w.medium)} {formatFuzzy(item.date, today)}
-              {item.overdue && "（過ぎています。買ったら「買った」に）"}
+              {item.overdue && "（過ぎています。届いたら「届いた」に）"}
             </span>
           )}
         </button>
@@ -81,7 +82,7 @@ function PurchaseRow({ item, tab, today, handlers }: { item: PurchaseItem; tab: 
               </button>
             )}
             <button type="button" className="buy-btn" onClick={() => (manga ? handlers.onPickVolumes(w, "buy") : handlers.onSetStage(w, "owned"))}>
-              買った
+              {tab === "reserved" ? "届いた" : "買った"}
             </button>
           </div>
         )}
@@ -107,6 +108,7 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
   const rest = shown.filter((i) => !i.overdue);
   return (
     <>
+      <ScrollHideBar>
       <div className="segmented" role="tablist">
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={t.id === tab} className={`seg${t.id === tab ? " on" : ""}`} onClick={() => { setTab(t.id); setMedium(null); }}>
@@ -122,6 +124,7 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
           ))}
         </div>
       )}
+      </ScrollHideBar>
       {shown.length === 0 ? (
         <div className="empty"><p>{EMPTY[tab]}</p></div>
       ) : (

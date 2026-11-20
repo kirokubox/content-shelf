@@ -177,6 +177,21 @@ export interface Work extends Base {
   shelfPlace: PaperPlace;
   /** イベントの区分（イベント以外は null。v0.9.0） */
   eventKind: EventKind;
+  /** 放送枠（アニメ・ドラマ。曜日と時刻。v0.20.0） */
+  airSlot: AirSlot | null;
+  /** 映像作品：もとになったLIVE（複数可。イベントの作品の id。v0.20.0） */
+  relatedLiveIds: string[];
+}
+
+/**
+ * 放送枠（v0.20.0）。深夜 0:00〜4:59 は前日の 24:00〜28:59 として持つ（「土曜25時」）。
+ * weekday は 0＝日〜6＝土（前日扱いにしたあとの曜日）、minutes は 0〜1739（24時以降は 1440 以上）
+ */
+export interface AirSlot {
+  weekday: number;
+  minutes: number;
+  /** anilist＝自動で入れた（次の確認で上書きする）、manual＝手で直した（自動では変えない） */
+  source: "anilist" | "manual";
 }
 
 export type ClearLevel = "clear" | "complete" | "partway" | null;

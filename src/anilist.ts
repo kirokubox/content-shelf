@@ -1,6 +1,7 @@
 // AniList（APIキー不要）から、アニメ・マンガの作品情報を取る（段階4。仕様181 §5.2）。
 // 取るのは「題名・表紙・全話数/全巻数・完結か・次に放送する話」だけ。自分の視聴位置は勝手に進めない。
 import { addCour } from "./courLogic.js";
+import { airSlotFromUnix } from "./airSlot.js";
 import type { Cour, Season, Work, WorkState } from "./types.js";
 
 const ENDPOINT = "https://graphql.anilist.co";
@@ -20,6 +21,8 @@ export interface AnilistMedia {
   cover: string | null;
   /** 次に放送する話（放送中のアニメだけ） */
   nextEpisode: number | null;
+  /** 次の話の放送日時（UNIX 秒。放送中のアニメだけ。v0.20.0） */
+  nextAiringAt: number | null;
   season: string | null;
   seasonYear: number | null;
   startDate: string | null;
@@ -34,13 +37,13 @@ interface RawMedia {
   episodes?: unknown;
   volumes?: unknown;
   coverImage?: { large?: unknown; medium?: unknown };
-  nextAiringEpisode?: { episode?: unknown } | null;
+  nextAiringEpisode?: { episode?: unknown; airingAt?: unknown } | null;
   season?: unknown;
   seasonYear?: unknown;
   startDate?: { year?: unknown; month?: unknown; day?: unknown };
 }
 
-const FIELDS = "id type title { native romaji } status(version: 2) format episodes volumes coverImage { large medium } nextAiringEpisode { episode } season seasonYear startDate { year month day }";
+const FIELDS = "id type title { native romaji } status(version: 2) format episodes volumes coverImage { large medium } nextAiringEpisode { episode airingAt } season seasonYear startDate { year month day }";
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v !== "" ? v : null;
@@ -70,6 +73,7 @@ export function mapMedia(m: RawMedia): AnilistMedia | null {
     volumes: posInt(m.volumes),
     cover: str(m.coverImage?.large) ?? str(m.coverImage?.medium),
     nextEpisode: posInt(m.nextAiringEpisode?.episode),
+    nextAiringAt: posInt(m.nextAiringEpisode?.airingAt),
     season: str(m.season),
     seasonYear: posInt(m.seasonYear),
     startDate,
@@ -139,7 +143,7 @@ export function workStateOf(m: AnilistMedia, current: WorkState): WorkState {
 }
 
 /**
- * 外部の情報を作品へ反映する。変えるのは「表紙・全話数/全巻数・作品の状態・本放送のクール・（放送日で数えていないアニメの）放送済み話数」だけ。
+ * 外部の情報を作品へ反映する。変えるのは「表紙・全話数/全巻数・作品の状態・本放送のクール・（放送日で数えていないアニメの）放送済み話数・放送枠（自動で入れたものだけ）」だけ。
  * クールは、本放送のクールがまだ1つも付いていないときだけ足す（本人が直したクールを戻さない）。
  * 見た位置（progress・readThrough）と状態は触らない（状態の自動切り替えは呼び出し側で withAutoStatus）。
  */
@@ -155,6 +159,10 @@ export function applyAnilist(work: Work, m: AnilistMedia, checkedAt: string): Wo
     externalIds: { ...work.externalIds, anilist: m.id },
     infoCheckedAt: checkedAt,
   };
+  // 放送枠：次の話の放送日時から曜日・時刻を入れる。手で直した枠は変えない（v0.20.0）
+  if (m.type === "ANIME" && m.nextAiringAt !== null && (work.airSlot === null || work.airSlot.source === "anilist")) {
+    next.airSlot = airSlotFromUnix(m.nextAiringAt);
+  }
   if (m.type === "ANIME" && !work.schedule) {
     const aired = airedFromAnilist(m);
     if (aired !== null) next.latestKnown = aired;

@@ -680,3 +680,19 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .sort-dir { white-space: nowrap; }
 .list-head:has(.sort-control) { justify-content: flex-start; align-items: center; gap: var(--kb-space-2); }
 .list-head:has(.sort-control) h2 { flex: 1; min-width: 0; }
+
+/* 楽しみの予定の「あと何日」（v0.20.0） */
+.countdown { align-self: center; background: var(--kb-accent-soft); color: var(--kb-accent-strong); font-weight: 700; white-space: nowrap; }
+
+/* 上部の切り替え：一覧の上に貼り付け、下へスクロールで隠れ、上へで出る（v0.20.0） */
+.scroll-hide-bar {
+  position: sticky; top: calc(-1 * var(--kb-space-4)); z-index: 5;
+  display: flex; flex-direction: column; gap: var(--kb-space-3);
+  margin: calc(-1 * var(--kb-space-4)) calc(-1 * var(--kb-space-4)) 0;
+  padding: var(--kb-space-4) var(--kb-space-4) var(--kb-space-2);
+  background: var(--kb-bg);
+  transition: transform var(--kb-dur) var(--kb-ease);
+}
+.scroll-hide-bar.is-hidden { transform: translateY(-100%); }
+.scroll-hide-bar:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .scroll-hide-bar { transition: none; } }

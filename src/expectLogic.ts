@@ -1,6 +1,6 @@
 // 楽しみの日（発売日・公開日・開催日・放送開始日）の計算。純粋ロジック（v0.17.0）
 import { WEEKDAY_LABEL, expectLabel } from "./constants.js";
-import { parseDateKey, toDateKey } from "./dateUtils.js";
+import { daysBetween, parseDateKey, toDateKey } from "./dateUtils.js";
 import type { FuzzyDate, Medium, Work } from "./types.js";
 
 /**
@@ -57,6 +57,36 @@ function volumesOf(ranges: readonly { from: number; to: number }[] | undefined):
   const s = new Set<number>();
   for (const r of ranges ?? []) for (let n = r.from; n <= r.to && n - r.from < 5000; n += 1) s.add(n);
   return s;
+}
+
+/**
+ * ホームの楽しみの予定に出す「あと何日」（v0.20.0）。
+ * 日まで分かる日付：今日／明日／あと10日まで日 → 8週間まで週 → それより先は月（12か月からは年）。
+ * 月だけ：今月／来月／あと○か月。年だけ：今年／来年／あと○年
+ */
+export function countdownText(d: FuzzyDate, today: string): string {
+  const ty = Number(today.slice(0, 4));
+  const tm = Number(today.slice(5, 7));
+  const y = Number(d.date.slice(0, 4));
+  const m = Number(d.date.slice(5, 7));
+  if (d.precision === "year") {
+    const n = y - ty;
+    return n <= 0 ? "今年" : n === 1 ? "来年" : `あと${n}年`;
+  }
+  if (d.precision === "month") {
+    const n = (y - ty) * 12 + (m - tm);
+    return n <= 0 ? "今月" : n === 1 ? "来月" : `あと${n}か月`;
+  }
+  const days = daysBetween(today, d.date);
+  if (days <= 0) return "今日";
+  if (days === 1) return "明日";
+  if (days <= 10) return `あと${days}日`;
+  if (days <= 56) return `あと${Math.round(days / 7)}週間`;
+  const months = Math.round(days / 30.44);
+  if (months < 12) return `あと${months}か月`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  return `あと${years}年${rest > 0 ? `${rest}か月` : ""}`;
 }
 
 export interface UpcomingItem {

@@ -1,7 +1,7 @@
 import type { Access, DigitalStore, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, RangeMedium, Work, WorkState, WorkStatus } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.19.0";
+export const APP_VERSION = "0.20.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 4;
@@ -198,7 +198,8 @@ export const EDITION_CANDIDATES = ["限定版", "通常版", "初回限定版", 
 export function purchaseFormatChoices(medium: Medium): PurchaseFormat[] {
   if (medium === "manga") return ["paper", "digital"];
   if (medium === "novel") return ["tankobon", "bunko", "tankobon_bunko", "ebook"];
-  if (medium === "video" || medium === "live") return ["bluray", "dvd"];
+  // 円盤（Blu-ray・DVD）は映像作品だけが持つ。イベント（LIVE）には購入の形を出さない（v0.20.0）
+  if (medium === "video") return ["bluray", "dvd"];
   if (medium === "game") return ["package", "download"];
   return [];
 }

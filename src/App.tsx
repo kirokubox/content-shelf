@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { applyAnilist, fetchAnilistByIds } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { ConfirmSheet } from "./BottomSheet";
@@ -22,6 +22,7 @@ import { TabBar, TABS } from "./TabBar";
 import type { TabId } from "./TabBar";
 import { ContinueView, CourView, HomeView, RecordsView, SummaryView } from "./TabViews";
 import { useToast } from "./Toast";
+import { discsOfLive, splitLiveDiscs } from "./liveDisc";
 import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
 import { WorkDetail } from "./WorkDetail";
 import { WorkEditor } from "./WorkEditor";
@@ -46,6 +47,7 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [tab, setTab] = useState<TabId>("home");
   const [stack, setStack] = useState<Overlay[]>([]);
+  const contentRef = useRef<HTMLElement>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   // マンガの巻を選ぶシート（買った・予約した）
   const [volSheet, setVolSheet] = useState<{ workId: string; mode: "buy" | "reserve" } | null>(null);
@@ -149,7 +151,8 @@ export default function App() {
     void savePurchase(work, r.work, `${work.title}：${volumesText(nums)}巻を${mode === "buy" ? "買った" : "予約した"}にしました`);
   };
   const setStage = (work: Work, stage: "reserved" | "owned") => {
-    void savePurchase(work, setPurchaseStage(work, stage), `${work.title}：「${PURCHASE_STAGE_LABEL[stage]}」にしました`);
+    const arrived = stage === "owned" && work.purchase.stage === "reserved";
+    void savePurchase(work, setPurchaseStage(work, stage), arrived ? `${work.title}：届いたので「${PURCHASE_STAGE_LABEL.owned}」にしました` : `${work.title}：「${PURCHASE_STAGE_LABEL[stage]}」にしました`);
   };
   /** ホームに出す積読（全体で1冊だけ） */
   const toggleHomePick = (work: Work) => {
@@ -261,7 +264,7 @@ export default function App() {
           <Icon name="settings" size={22} />
         </button>
       </header>
-      <main className="content" key={tab}>
+      <main className="content" key={tab} ref={contentRef}>
         {!loaded ? null : tab === "home" ? (
           <HomeView data={data} handlers={handlers} onAdd={openAdd} onGoContinue={() => setTab("continue")} onGoCour={() => push({ kind: "cour" })} onGoRecords={() => setTab("records")} onOpenRecord={openRecord} enabledMedia={enabledMedia} onToggleMedium={toggleEnabledMedium} />
         ) : tab === "continue" ? (
@@ -277,7 +280,15 @@ export default function App() {
       <button type="button" className="fab" aria-label="作品を登録" onClick={openAdd}>
         <Icon name="plus" size={26} />
       </button>
-      <TabBar current={tab} onSelect={(id) => { setTab(id); setStack([]); }} />
+      <TabBar
+        current={tab}
+        onSelect={(id) => {
+          // 今いる下タブをもう一度押すと一番上へ戻る（重ねた画面が開いていれば、それを閉じるだけ）（v0.20.0）
+          if (id === tab && stack.length === 0) contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          setTab(id);
+          setStack([]);
+        }}
+      />
 
       {stack.map((o, i) => {
         const key = `${o.kind}-${i}`;
@@ -354,12 +365,17 @@ export default function App() {
               onToggleMedium={toggleEnabledMedium}
               onBack={pop}
               onReplace={async (d) => {
-                await replaceAll(d);
-                setData(d);
+                // 古いバックアップでLIVEに購入情報が付いていたら、映像作品へ移してから入れる（v0.20.0）
+                const s = splitLiveDiscs(d.works, nowIso());
+                const next = s.updated.length > 0 ? applyChanges(d, { works: [...s.created, ...s.updated] }) : d;
+                await replaceAll(next);
+                setData(next);
               }}
               onAdd={async (d) => {
-                await putRecords(d);
-                setData((cur) => applyChanges(cur, d));
+                const s = splitLiveDiscs(applyChanges(data, d).works, nowIso());
+                const changes = s.updated.length > 0 ? { ...d, works: [...(d.works ?? []), ...s.created, ...s.updated] } : d;
+                await putRecords(changes);
+                setData((cur) => applyChanges(cur, changes));
               }}
               showToast={showToast}
               onRefreshExternal={async () => {
@@ -435,6 +451,14 @@ export default function App() {
             people={w.personIds.map((id) => data.people.find((p) => p.id === id && p.deletedAt === null)).filter((p): p is NonNullable<typeof p> => !!p)}
             onOpenFranchise={(f) => push({ kind: "franchise", id: f.id })}
             onOpenPerson={(p) => push({ kind: "person", id: p.id })}
+            linkedWorks={
+              w.medium === "video"
+                ? { label: "関連LIVE", works: w.relatedLiveIds.map((id) => data.works.find((x) => x.id === id && x.deletedAt === null)).filter((x): x is Work => !!x) }
+                : w.medium === "live"
+                  ? { label: "円盤", works: discsOfLive(data.works, w.id) }
+                  : null
+            }
+            onOpenWork={(x) => push({ kind: "detail", workId: x.id })}
             today={today}
             onBack={pop}
             onEdit={() => push({ kind: "editor", workId: w.id, medium: w.medium })}

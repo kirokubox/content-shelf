@@ -15,9 +15,10 @@ import { MonthSummaryView } from "./MonthSummaryView";
 import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
 import { upcomingByMedium } from "./expectLogic";
 import type { UpcomingItem } from "./expectLogic";
-import { formatFuzzy, workExpect } from "./expectLogic";
+import { countdownText, formatFuzzy, workExpect } from "./expectLogic";
 import { SortControl, useSortPref } from "./SortControl";
-import { lastLoggedMap, sortWorks } from "./sortLogic";
+import { ScrollHideBar } from "./ScrollHideBar";
+import { defaultSortPref, lastLoggedMap, sortItems, sortWorks } from "./sortLogic";
 
 interface CardHandlers {
   today: string;
@@ -107,6 +108,7 @@ function UpcomingRow({ item, today, onOpen }: { item: UpcomingItem; today: strin
             {item.label} {formatFuzzy(item.date, today)}
           </span>
         </span>
+        <span className="badge countdown">{countdownText(item.date, today)}</span>
       </button>
     </li>
   );
@@ -120,7 +122,8 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
   );
   const viaMap = useMemo(() => latestViaMap(data.logs), [data.logs]);
   // 今期のアニメ：最初から開いておく。未視聴が無い（追いついた）作品だけたたむ
-  const cour = useMemo(() => currentCourList(data.works, data.logs, handlers.today).active, [data.works, data.logs, handlers.today]);
+  // 今期のアニメ：放送枠の順（月曜から。v0.20.0）
+  const cour = useMemo(() => sortItems(currentCourList(data.works, data.logs, handlers.today).active, defaultSortPref("cour"), { work: (c) => c.work }), [data.works, data.logs, handlers.today]);
   const courMain = cour.filter((c) => unconsumedCount(c.work, handlers.today) !== 0);
   const courCaught = cour.filter((c) => unconsumedCount(c.work, handlers.today) === 0);
   const courIds = useMemo(() => new Set(cour.map((c) => c.work.id)), [cour]);
@@ -341,6 +344,7 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
   const total = main.length + caughtUp.length + stopped.length;
   return (
     <>
+      <ScrollHideBar>
       <div className="segmented" role="tablist">
         {CONTINUE_TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={t.id === tab} className={`seg${t.id === tab ? " on" : ""}`} onClick={() => { setTab(t.id); setMedium(null); }}>
@@ -356,6 +360,7 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
           </button>
         </div>
       )}
+      </ScrollHideBar>
       {total === 0 ? (
         <Empty text={EMPTY_TEXT[tab]} onAdd={onAdd} />
       ) : (
@@ -427,7 +432,9 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
   if (all.length === 0) return <Empty text="見た・読んだ記録はまだありません。映画・小説を登録するか、続きの作品を最後まで見ると、ここにたまります。" />;
   return (
     <>
-      <MediumChips media={media} value={selectedMedium} onChange={setMedium} />
+      <ScrollHideBar>
+        <MediumChips media={media} value={selectedMedium} onChange={setMedium} />
+      </ScrollHideBar>
       <div className="records-tools">
         <p className="muted small count-line">{items.length}件</p>
         <div className="records-right">
@@ -550,7 +557,11 @@ export function SummaryView({ data, today, onOpen }: { data: DataSet; today: str
 /** 今期の一覧：今期のクールが付いた、進行中・予定の作品（最新の記録が配信のものは外す）。済になったものは下にたたむ */
 export function CourView({ data, handlers, onBack }: { data: DataSet; handlers: CardHandlers; onBack: () => void }) {
   const [doneOpen, setDoneOpen] = useState(false);
-  const { active, done } = useMemo(() => currentCourList(data.works, data.logs, handlers.today), [data.works, data.logs, handlers.today]);
+  // 並び順（v0.20.0）：既定は放送枠（月曜から、同じ曜日は早い時刻から。枠の無い作品は最後に題名順）
+  const [sortPref, setSortPref] = useSortPref("cour");
+  const list = useMemo(() => currentCourList(data.works, data.logs, handlers.today), [data.works, data.logs, handlers.today]);
+  const active = sortItems(list.active, sortPref, { work: (c) => c.work });
+  const done = sortItems(list.done, sortPref, { work: (c) => c.work });
   return (
     <Screen title={`今期（${currentCourName(handlers.today)}）`} onBack={onBack}>
       {active.length === 0 && done.length === 0 ? (
@@ -559,7 +570,10 @@ export function CourView({ data, handlers, onBack }: { data: DataSet; handlers: 
         <>
           {active.length > 0 && (
             <section className="card list-card">
-              <p className="muted small pad">{active.length}作品</p>
+              <div className="list-head">
+                <h2>{active.length}作品</h2>
+                <SortControl scope="cour" value={sortPref} onChange={setSortPref} />
+              </div>
               <ul className="work-list">
                 {active.map((c) => (
                   <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />

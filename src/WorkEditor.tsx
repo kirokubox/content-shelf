@@ -15,9 +15,11 @@ import { airedFromAnilist, courOf, workStateOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
-import type { Access, ClearLevel, Cour, DataSet, DigitalStore, EventKind, FuzzyDate, StoredPhoto, Franchise, Log, Medium, PaperPlace, Person, PurchaseFormat, PurchaseStage, RangeMedium, Season, VolumeDate, VolumeRange, Work, WorkStatus } from "./types";
+import type { AirSlot, Access, ClearLevel, Cour, DataSet, DigitalStore, EventKind, FuzzyDate, StoredPhoto, Franchise, Log, Medium, PaperPlace, Person, PurchaseFormat, PurchaseStage, RangeMedium, Season, VolumeDate, VolumeRange, Work, WorkStatus } from "./types";
 import { DIGITAL_STORES, MEDIA, PURCHASE_STAGES, SEASONS, UNKNOWN_DATE } from "./types";
 import { emptyWork, newLog } from "./workFactory";
+import { formatSlotTime, parseSlotTime, toAirSlot } from "./airSlot";
+import { compareTitle } from "./sortLogic";
 
 /** 「1-5, 7」→ [{1,5},{7,7}] */
 export function parseRanges(text: string): VolumeRange[] | null {
@@ -180,8 +182,9 @@ function accessChoices(medium: Medium): { value: Access; label: string }[] | nul
   return null;
 }
 /** 購入の欄を出す種類 */
-function hasPurchase(w: Pick<Work, "medium" | "eventKind">): boolean {
-  return w.medium === "manga" || w.medium === "novel" || w.medium === "game" || w.medium === "video" || isStageEvent(w);
+/** 購入を持つ種類。円盤は映像作品だけが持つので、イベント（LIVE）には出さない（v0.20.0） */
+function hasPurchase(w: Pick<Work, "medium">): boolean {
+  return w.medium === "manga" || w.medium === "novel" || w.medium === "game" || w.medium === "video";
 }
 
 interface VolDateRow {
@@ -290,6 +293,12 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
   const [error, setError] = useState("");
   const [franchiseText, setFranchiseText] = useState(() => (work?.franchiseId ? data.franchises.find((f) => f.id === work.franchiseId)?.title ?? "" : ""));
   const [people, setPeople] = useState<string[]>(() => (work ? personNames(data, work.personIds) : []));
+  // 放送枠（アニメ・ドラマ。v0.20.0）：曜日と時刻（深夜は 25:30 のように入れる）
+  const [slotDay, setSlotDay] = useState<string>(() => (w.airSlot ? String(w.airSlot.weekday) : ""));
+  const [slotTime, setSlotTime] = useState<string>(() => (w.airSlot ? formatSlotTime(w.airSlot.minutes) : ""));
+  // 映像作品の関連LIVE（v0.20.0）
+  const liveChoices = data.works.filter((x) => x.deletedAt === null && x.medium === "live" && x.id !== w.id).sort((a, b) => compareTitle(a, b));
+  const [liveDraft, setLiveDraft] = useState("");
   const [personDraft, setPersonDraft] = useState("");
   const [searching, setSearching] = useState(false);
   const [mediumOpen, setMediumOpen] = useState(false);
@@ -409,6 +418,14 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
     for (const r of ranges) for (let n = r.from; n <= r.to && n - r.from < 5000; n += 1) ownedSet.add(n);
     const overlap = reserved.find((r) => { for (let n = r.from; n <= r.to && n - r.from < 5000; n += 1) if (ownedSet.has(n)) return true; return false; });
     if (overlap) return setError("予約済の巻と所持の巻が重なっています。買った巻は所持の巻だけに入れてください");
+    // 放送枠：曜日と時刻の両方が入っていれば持つ。両方空なら外す。変えていなければ自動で入れた印のまま
+    let airSlot: AirSlot | null = null;
+    if ((w.medium === "anime" || w.medium === "drama") && (slotDay !== "" || slotTime.trim() !== "")) {
+      const minutes = parseSlotTime(slotTime);
+      if (slotDay === "" || minutes === null) return setError("放送枠は曜日と時刻（例 25:30）を両方入れてください");
+      const slot = toAirSlot(Number(slotDay), minutes, "manual");
+      airSlot = w.airSlot && w.airSlot.weekday === slot.weekday && w.airSlot.minutes === slot.minutes ? w.airSlot : slot;
+    }
     const now = nowIso();
     const fr = resolveFranchise(data.franchises, franchiseText, now);
     const pp = resolvePeople(data.people, personDraft.trim() ? [...people, personDraft] : people, now);
@@ -433,6 +450,8 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
       clearLevel: w.medium === "game" ? w.clearLevel : null,
       shelfPlace: w.medium === "novel" ? w.shelfPlace : null,
       isOriginal: franchiseText.trim() ? w.isOriginal : false,
+      airSlot,
+      relatedLiveIds: w.medium === "video" ? w.relatedLiveIds : [],
       updatedAt: now,
       touchedAt: isNew ? now : w.touchedAt,
     };
@@ -661,6 +680,28 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
         </div>
       )}
 
+      {/* 放送枠（アニメ・ドラマ。v0.20.0）。AniListとつながっていれば自動で入る */}
+      {(w.medium === "anime" || w.medium === "drama") && (
+        <div className="form card compact">
+          <div className="two-col">
+            <label className="field">
+              <span className="field-label">放送の曜日</span>
+              <select className="text-input" value={slotDay} onChange={(e) => setSlotDay(e.target.value)}>
+                <option value="">なし</option>
+                {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                  <option key={d} value={String(d)}>{WEEKDAY_LABEL[d]}曜</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field-label">放送の時刻</span>
+              <input className="text-input" inputMode="numeric" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} placeholder="例 25:30" />
+            </label>
+          </div>
+          <p className="field-hint">深夜0時〜4時台は前の日の24〜28時として入れます（土曜の深夜1時半＝土曜 25:30）。{w.airSlot?.source === "anilist" ? "今はAniListから自動で入れた枠です。直すと、以後は自動で変えません。" : ""}</p>
+        </div>
+      )}
+
       {/* 購入：段階・形（種類ごと）・マンガは巻の範囲ごとの紙／Kindle・予約済の巻・版 */}
       {hasPurchase(w) && (
         <div className="form card compact">
@@ -812,6 +853,35 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
           <>
             <textarea className="text-input note-input" rows={3} value={w.setlist} onChange={(e) => set({ setlist: e.target.value })} placeholder="セットリスト（1曲ずつ改行）" aria-label="セットリスト" />
           </>
+        )}
+        {w.medium === "video" && (
+          <div className="field">
+            <span className="field-label">関連LIVE（この円盤に入っている公演。複数可）</span>
+            {w.relatedLiveIds.length > 0 && (
+              <div className="chips">
+                {w.relatedLiveIds.map((id) => {
+                  const live = data.works.find((x) => x.id === id);
+                  const name = live ? live.title + (live.partLabel ? ` ${live.partLabel}` : "") : "（消したイベント）";
+                  return (
+                    <button key={id} type="button" className="chip on" aria-label={`${name}を外す`} onClick={() => set({ relatedLiveIds: w.relatedLiveIds.filter((x) => x !== id) })}>
+                      {name} <Icon name="close" size={14} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="inline-add">
+              <select className="text-input" value={liveDraft} onChange={(e) => setLiveDraft(e.target.value)} aria-label="関連LIVEを選ぶ">
+                <option value="">イベントから選ぶ</option>
+                {liveChoices.filter((x) => !w.relatedLiveIds.includes(x.id)).map((x) => (
+                  <option key={x.id} value={x.id}>{x.title}{x.partLabel ? ` ${x.partLabel}` : ""}</option>
+                ))}
+              </select>
+              <button type="button" className="secondary-btn add-btn" aria-label="関連LIVEに足す" disabled={!liveDraft} onClick={() => { set({ relatedLiveIds: [...w.relatedLiveIds, liveDraft] }); setLiveDraft(""); }}>
+                <Icon name="plus" size={18} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

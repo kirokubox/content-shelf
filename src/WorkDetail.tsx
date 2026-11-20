@@ -11,6 +11,7 @@ import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesDetailText, rangesText } from "./WorkEditor";
 import { SortControl, useSortPref } from "./SortControl";
+import { formatAirSlot } from "./airSlot";
 
 const PLACE_LABEL = { home: "自宅", parents_home: "実家", both: "自宅と実家", unknown: "場所不明" } as const;
 
@@ -21,6 +22,9 @@ interface Props {
   people: Person[];
   onOpenFranchise: (f: Franchise) => void;
   onOpenPerson: (p: Person) => void;
+  /** 映像作品の関連LIVE・イベントの円盤（v0.20.0） */
+  linkedWorks: { label: string; works: Work[] } | null;
+  onOpenWork: (w: Work) => void;
   today: string;
   onBack: () => void;
   onEdit: () => void;
@@ -50,7 +54,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onPickVolumes, onToggleHomePick, onNewVolume, onStartAgain, onAddRerun }: Props) {
+export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onOpenPerson, linkedWorks, onOpenWork, today, onBack, onEdit, onStep, onAddLog, onEditLog, onSetStatus, onDelete, onPickVolumes, onToggleHomePick, onNewVolume, onStartAgain, onAddRerun }: Props) {
   const unbought = unboughtVolumes(work);
   const gaps = ownedGapSummary(work);
   const [menu, setMenu] = useState(false);
@@ -213,6 +217,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
       <section className="card">
         <dl className="rows">
           <Row label={kind === "issue" ? "発売" : "放送"} value={schedule ? `毎週${WEEKDAY_LABEL[weekdayOf(schedule.firstDate)]}曜日` : null} />
+          <Row label="放送枠" value={work.airSlot ? `${formatAirSlot(work.airSlot)}${work.airSlot.source === "anilist" ? "（AniList）" : ""}` : null} />
           <Row label="休みの週" value={schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map((x) => formatDateShort(x)).join("、") : null} />
           <Row label="作品" value={work.workState ? workStateWord(work.medium, work.workState) : null} />
           <Row label="クール" value={showCours ? work.cours.map(formatCour).join("、") : null} />
@@ -242,6 +247,20 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               ) : null
             }
           />
+          {linkedWorks && (
+            <Row
+              label={linkedWorks.label}
+              value={
+                linkedWorks.works.length > 0 ? (
+                  <span className="row-chips">
+                    {linkedWorks.works.map((x) => (
+                      <button key={x.id} type="button" className="chip mini" onClick={() => onOpenWork(x)}>{x.title}{x.partLabel ? ` ${x.partLabel}` : ""}</button>
+                    ))}
+                  </span>
+                ) : null
+              }
+            />
+          )}
         </dl>
         {work.memo && (
           <div className="detail-block">

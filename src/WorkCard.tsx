@@ -5,6 +5,7 @@ import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { expectVerb, formatFuzzy, workExpect } from "./expectLogic";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
+import { formatAirSlot } from "./airSlot";
 import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
 import type { Work } from "./types";
 
@@ -68,6 +69,7 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
           <span className="work-sub dim">
             {/* 予定の作品は「いつ登録したか」、それ以外は最後に触った日 */}
             {work.status === "wish" ? `登録 ${formatDateShort(isoToDateKey(work.createdAt))}` : `最終 ${formatDateShort(isoToDateKey(work.touchedAt))}`}
+            {work.airSlot && (work.medium === "anime" || work.medium === "drama") && work.status !== "done" && <span className="wait-note">{formatAirSlot(work.airSlot)}</span>}
             {expect && <span className="expect-note">{expectVerb(work.medium)} {formatFuzzy(expect, today)}</span>}
             {isWaitingForNewVolume(work, today) && <span className="wait-note">新刊待ち</span>}
             {isTsundoku(work) && <span className="wait-note">積読</span>}

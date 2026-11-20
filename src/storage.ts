@@ -1,6 +1,7 @@
 // 保存：IndexedDB（家計簿と同じ方式。仕様181 §6.1）。画面は全件をメモリに持ち、変更をここへ書き込む。
 import { DB_NAME, DB_VERSION, MIGRATION_STORE, PHOTO_STORE, STORES } from "./constants.js";
-import { normalizeData } from "./dataOps.js";
+import { applyChanges, normalizeData } from "./dataOps.js";
+import { splitLiveDiscs } from "./liveDisc.js";
 import { hasLegacyWorks, hasV2Works, migrateV1ToV2, migrateV2ToV3 } from "./migrate.js";
 import type { MigrationReport, MigrationV3Report } from "./migrate.js";
 import type { DataSet, Franchise, Log, Person, StoredPhoto, Work } from "./types.js";
@@ -63,7 +64,7 @@ function getAll<S extends StoreName>(db: IDBDatabase, name: S): Promise<RecordOf
 /** 移し替え前のデータ（丸ごと）。1回だけ保存して、あとで書き出せる */
 export interface MigrationBackupRecord {
   /** v1-before＝版1→版2の前（v0.16.0）、v2-before＝版2→版3の前（v0.17.0） */
-  id: "v1-before" | "v2-before";
+  id: "v1-before" | "v2-before" | "live-disc-before";
   savedAt: string;
   data: { franchises: unknown[]; works: unknown[]; logs: unknown[]; people: unknown[] };
 }
@@ -159,7 +160,24 @@ export async function loadAll(): Promise<DataSet> {
   await migrateIfNeeded(db);
   await migrateV3IfNeeded(db);
   const [franchises, works, logs, people] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs"), getAll(db, "people")]);
-  return normalizeData({ franchises, works, logs, people });
+  const data = normalizeData({ franchises, works, logs, people });
+  return splitLiveDiscsIfNeeded(db, data, { franchises, works, logs, people });
+}
+
+/**
+ * LIVE に付いた購入情報を映像作品へ移す（v0.20.0）。移す前の丸ごとを migrations の live-disc-before に1回だけ保存する。
+ * 移すものが無ければ何もしない（2回目以降の起動、移し替え済みのデータ）
+ */
+async function splitLiveDiscsIfNeeded(db: IDBDatabase, data: DataSet, raw: MigrationBackupRecord["data"]): Promise<DataSet> {
+  const now = new Date().toISOString();
+  const split = splitLiveDiscs(data.works, now);
+  if (split.updated.length === 0) return data;
+  const hasBackup = (await getOne<MigrationBackupRecord>(db, MIGRATION_STORE, "live-disc-before")) !== undefined;
+  const tx = db.transaction(["works", MIGRATION_STORE], "readwrite");
+  if (!hasBackup) tx.objectStore(MIGRATION_STORE).put({ id: "live-disc-before", savedAt: now, data: raw } satisfies MigrationBackupRecord);
+  for (const w of [...split.created, ...split.updated]) tx.objectStore("works").put(w);
+  await done(tx);
+  return applyChanges(data, { works: [...split.created, ...split.updated] });
 }
 
 /** 変更分をまとめて書く（1つのトランザクション） */

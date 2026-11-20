@@ -1,6 +1,7 @@
 import { ACCESSES, DIGITAL_STORES, LOG_VIAS, PURCHASE_FORMATS, PURCHASE_STAGES, SEASONS, WORK_STATES } from "./types.js";
 import type { Access, Cour, DataSet, DigitalStore, FuzzyDate, Log, Person, VolumeDate, VolumeRange, Work } from "./types.js";
 import { isDateKey } from "./dateUtils.js";
+import { normAirSlot } from "./airSlot.js";
 
 /** 変更分（id で上書き・追加）を全体へ反映した新しいデータ */
 export function applyChanges(data: DataSet, changes: Partial<DataSet>): DataSet {
@@ -114,6 +115,8 @@ export function normalizeWork(w: Work): Work {
     shelfPlace: w.shelfPlace === "home" || w.shelfPlace === "parents_home" || w.shelfPlace === "both" ? w.shelfPlace : null,
     eventKind: w.medium === "live" ? ((["live", "fes", "food", "exhibit", "other"] as const).find((k) => k === w.eventKind) ?? null) : null,
     coverPhotoId: typeof w.coverPhotoId === "string" && w.coverPhotoId ? w.coverPhotoId : null,
+    airSlot: normAirSlot(x.airSlot),
+    relatedLiveIds: w.medium === "video" && Array.isArray(x.relatedLiveIds) ? Array.from(new Set((x.relatedLiveIds as unknown[]).filter((id): id is string => typeof id === "string" && id !== ""))) : [],
   };
 }
 

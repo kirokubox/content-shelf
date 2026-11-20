@@ -98,6 +98,8 @@ export function convertMangaSeries(s: MangaSeries, now: string): Work {
     shelfPlace: null,
     eventKind: null,
     coverPhotoId: null,
+    airSlot: null,
+    relatedLiveIds: [],
   };
 }
 

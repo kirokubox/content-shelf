@@ -104,7 +104,7 @@ test("積読・○周目・もう一度見ると周回数が増える", () => {
 });
 
 test("AniList：時期は本放送のクール、始まる前は「始まる前」。すでに本放送のクールがあれば足さない", () => {
-  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "NOT_YET_RELEASED", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: null, season: "FALL", seasonYear: 2026, startDate: null };
+  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "NOT_YET_RELEASED", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: null, nextAiringAt: null, season: "FALL", seasonYear: 2026, startDate: null };
   assert.deepEqual(courOf(m), FALL);
   assert.equal(courOf({ ...m, type: "MANGA" }), null);
   const w = applyAnilist({ ...emptyWork("anime", NOW), title: "a" }, m, NOW);

@@ -5,9 +5,10 @@
 //  - 値が無い作品は、向きに関係なく常に最後。同じ順位のときは題名順
 //  - 日付の並び順は向きを切り替えられる。題名は五十音順だけ
 import { compareFuzzy } from "./expectLogic.js";
-import type { FuzzyDate, Log, Work } from "./types.js";
+import { compareAirSlot } from "./airSlot.js";
+import type { AirSlot, FuzzyDate, Log, Work } from "./types.js";
 
-export type SortKey = "title" | "touched" | "logged" | "expect";
+export type SortKey = "title" | "touched" | "logged" | "expect" | "airslot";
 export type SortDir = "asc" | "desc";
 export interface SortPref {
   key: SortKey;
@@ -19,19 +20,21 @@ export const SORT_LABEL: Record<SortKey, string> = {
   touched: "最近触った",
   logged: "記録日",
   expect: "楽しみの日",
+  airslot: "放送枠",
 };
 
 /** 並び順を選び直したときの向き */
-export const DEFAULT_DIR: Record<SortKey, SortDir> = { title: "asc", touched: "desc", logged: "desc", expect: "asc" };
+export const DEFAULT_DIR: Record<SortKey, SortDir> = { title: "asc", touched: "desc", logged: "desc", expect: "asc", airslot: "asc" };
 
-/** 向きを切り替えられる並び順（題名は五十音順だけ） */
+/** 向きを切り替えられる並び順（題名は五十音順だけ、放送枠は月曜から日曜の順だけ） */
 export function hasDirection(key: SortKey): boolean {
-  return key !== "title";
+  return key !== "title" && key !== "airslot";
 }
 
 /** 向きの言葉 */
 export function dirLabel(key: SortKey, dir: SortDir): string {
   if (key === "title") return "五十音順";
+  if (key === "airslot") return "月曜から";
   if (key === "expect") return dir === "asc" ? "近い順" : "遠い順";
   return dir === "desc" ? "新しい順" : "古い順";
 }
@@ -46,7 +49,8 @@ export type SortScope =
   | "purchase-owned"
   | "relation"
   | "records"
-  | "work-logs";
+  | "work-logs"
+  | "cour";
 
 /** 画面ごとの選択肢。先頭が既定 */
 export const SORT_OPTIONS: Record<SortScope, readonly SortKey[]> = {
@@ -59,6 +63,7 @@ export const SORT_OPTIONS: Record<SortScope, readonly SortKey[]> = {
   relation: ["logged", "title"],
   records: ["logged"],
   "work-logs": ["logged"],
+  cour: ["airslot", "title"],
 };
 
 export function defaultSortPref(scope: SortScope): SortPref {
@@ -139,6 +144,8 @@ export function sortItems<T>(items: readonly T[], pref: SortPref, src: SortSourc
         return compareNullable(src.logged?.(a) ?? null, src.logged?.(b) ?? null, compareText, pref.dir);
       case "expect":
         return compareNullable(src.expect?.(a) ?? null, src.expect?.(b) ?? null, compareFuzzy, pref.dir);
+      case "airslot":
+        return compareNullable<AirSlot>(src.work(a).airSlot, src.work(b).airSlot, compareAirSlot, "asc");
     }
   };
   return [...items].sort((a, b) => primary(a, b) || byTitle(a, b));

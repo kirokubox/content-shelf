@@ -18,6 +18,7 @@ import type { UpcomingItem } from "./expectLogic";
 import { countdownText, formatFuzzy, workExpect } from "./expectLogic";
 import { SortControl, useSortPref } from "./SortControl";
 import { ScrollHideBar } from "./ScrollHideBar";
+import { ChoiceSheet } from "./BottomSheet";
 import { defaultSortPref, lastLoggedMap, sortItems, sortWorks } from "./sortLogic";
 
 interface CardHandlers {
@@ -115,7 +116,6 @@ function UpcomingRow({ item, today, onOpen }: { item: UpcomingItem; today: strin
 }
 
 export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRecords, onOpenRecord, enabledMedia, onToggleMedium }: { onGoCour: () => void; enabledMedia: Medium[] | null; onToggleMedium: (medium: Medium) => void; data: DataSet; handlers: CardHandlers; onAdd: () => void; onGoContinue: () => void; onGoRecords: () => void; onOpenRecord: (item: RecordItem) => void }) {
-  const [caughtCourOpen, setCaughtCourOpen] = useState(false);
   const covers = useMemo(
     () => data.works.filter((w) => w.deletedAt === null).sort((a, b) => b.touchedAt.localeCompare(a.touchedAt)).slice(0, 12),
     [data.works],
@@ -125,7 +125,6 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
   // 今期のアニメ：放送枠の順（月曜から。v0.20.0）
   const cour = useMemo(() => sortItems(currentCourList(data.works, data.logs, handlers.today).active, defaultSortPref("cour"), { work: (c) => c.work }), [data.works, data.logs, handlers.today]);
   const courMain = cour.filter((c) => unconsumedCount(c.work, handlers.today) !== 0);
-  const courCaught = cour.filter((c) => unconsumedCount(c.work, handlers.today) === 0);
   const courIds = useMemo(() => new Set(cour.map((c) => c.work.id)), [cour]);
   const upcoming = useMemo(() => upcomingByMedium(data.works, handlers.today), [data.works, handlers.today]);
   // ホームに出す積読（詳細画面で1冊選ぶ）。もう積読でなくなっていたら出さない
@@ -138,10 +137,6 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
     [data.works, handlers.today, viaMap, courIds],
   );
   const records = useMemo(() => buildRecordItems(data).slice(0, 5), [data]);
-  const totals = useMemo(() => summarize(data, "week", handlers.today), [data, handlers.today]);
-  const totalWorks = totals.reduce((sum, row) => sum + row.works, 0);
-  const totalLogs = totals.reduce((sum, row) => sum + row.count, 0);
-  const totalDone = completedWorks(data, "week", handlers.today);
   if (data.works.filter((w) => w.deletedAt === null).length === 0) {
     return (
       <section className="card welcome-card" aria-label="はじめに">
@@ -186,14 +181,27 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
           ))}
         </div>
       </section>
-      <section className="card home-summary">
-        <p className="summary-label">今週の記録</p>
-        <p className="summary-main">{totalLogs}<span className="summary-unit">件</span></p>
-        <dl className="summary-sub">
-          <div><dt>今週の作品</dt><dd>{totalWorks}</dd></div>
-          <div><dt>今週完了</dt><dd>{totalDone}</dd></div>
-          <div><dt>種類</dt><dd>{totals.length}</dd></div>
-        </dl>
+      {/* 今見るもの（v0.21.0）：今期のアニメで見るものがある作品（放送枠の順）→ ほかの続きで溜まっているもの。
+          追いついた今期のアニメは今期の一覧と続きタブで見る */}
+      <section className="card list-card">
+        <button type="button" className="list-head link-head" onClick={onGoContinue}>
+          <h2>今見るもの</h2>
+          <Icon name="chevron-right" size={18} />
+        </button>
+        {courMain.length === 0 && waiting.length === 0 ? (
+          <p className="muted pad">いま見る・読む続きはありません。</p>
+        ) : (
+          <ul className="work-list">
+            {courMain.map((c) => <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />)}
+            {waiting.map((w) => <WorkCard key={w.id} work={w} {...handlers} />)}
+          </ul>
+        )}
+        {cour.length > 0 && (
+          <button type="button" className="list-foot-link" onClick={onGoCour}>
+            今期のアニメ（{currentCourName(handlers.today)}）{cour.length}作品をすべて見る
+            <Icon name="chevron-right" size={16} />
+          </button>
+        )}
       </section>
       {(upcoming.length > 0 || pick) && (
         <section className="card list-card">
@@ -216,32 +224,6 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
           </ul>
         </section>
       )}
-      {cour.length > 0 && (
-        <section className="card list-card">
-          <button type="button" className="list-head link-head" onClick={onGoCour}>
-            <h2>今期のアニメ（{currentCourName(handlers.today)}）{cour.length}作品</h2>
-            <Icon name="chevron-right" size={18} />
-          </button>
-          {courMain.length > 0 && (
-            <ul className="work-list">
-              {courMain.map((c) => <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />)}
-            </ul>
-          )}
-          {courCaught.length > 0 && (
-            <>
-              <button type="button" className="list-head link-head fold-head" aria-expanded={caughtCourOpen} onClick={() => setCaughtCourOpen(!caughtCourOpen)}>
-                <h2 className="small-h">追いついている（{courCaught.length}作品）</h2>
-                <Icon name={caughtCourOpen ? "chevron-up" : "chevron-down"} size={18} />
-              </button>
-              {caughtCourOpen && (
-                <ul className="work-list">
-                  {courCaught.map((c) => <WorkCard key={c.work.id} work={c.work} rerun={c.rerun} {...handlers} />)}
-                </ul>
-              )}
-            </>
-          )}
-        </section>
-      )}
       <section className="card list-card">
         <button type="button" className="list-head link-head" onClick={onGoRecords}>
           <h2>直近の記録</h2>
@@ -253,21 +235,6 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
           <ul className="list">
             {records.map((r) => (
               <RecordRow key={r.key} item={r} onOpen={onOpenRecord} />
-            ))}
-          </ul>
-        )}
-      </section>
-      <section className="card list-card">
-        <button type="button" className="list-head link-head" onClick={onGoContinue}>
-          <h2>続きで溜まっているもの</h2>
-          <Icon name="chevron-right" size={18} />
-        </button>
-        {waiting.length === 0 ? (
-          <p className="muted pad">いま溜まっている続きはありません。</p>
-        ) : (
-          <ul className="work-list">
-            {waiting.map((w) => (
-              <WorkCard key={w.id} work={w} {...handlers} />
             ))}
           </ul>
         )}
@@ -420,6 +387,7 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
   const [mode, setMode] = useState<"list" | "grid">("list");
   const [medium, setMedium] = useState<Medium | null>(null);
   const [year, setYear] = useState<string | null>(null);
+  const [yearOpen, setYearOpen] = useState(false);
   const built = useMemo(() => buildRecordItems(data), [data]);
   // 並び順（v0.19.0）：記録日の新しい順・古い順。1行＝記録1回
   const [sortPref, setSortPref] = useSortPref("records");
@@ -440,14 +408,19 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
         <div className="records-right">
           <SortControl scope="records" value={sortPref} onChange={setSortPref} />
           {years.length > 1 && (
-            <select className="text-input year-select" value={year ?? ""} onChange={(e) => setYear(e.target.value || null)} aria-label="年">
-              <option value="">すべての年</option>
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}年
-                </option>
-              ))}
-            </select>
+            <button type="button" className="chip mini sort-pick" aria-label={`年：${year ? `${year}年` : "すべての年"}（押すと選ぶ）`} onClick={() => setYearOpen(true)}>
+              {year ? `${year}年` : "すべての年"}
+              <Icon name="chevron-down" size={14} />
+            </button>
+          )}
+          {yearOpen && (
+            <ChoiceSheet<string>
+              title="年"
+              options={[{ value: "", label: "すべての年" }, ...years.map((y) => ({ value: y, label: `${y}年` }))]}
+              value={year ?? ""}
+              onSelect={(v) => setYear(v || null)}
+              onClose={() => setYearOpen(false)}
+            />
           )}
           <button type="button" className="icon-btn" aria-label={mode === "list" ? "並べて表示" : "一覧で表示"} onClick={() => setMode(mode === "list" ? "grid" : "list")}>
             <Icon name={mode === "list" ? "grid" : "list"} size={20} />
@@ -478,7 +451,9 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
   );
 }
 
+// 今週（v0.21.0）：ホームの「今週の記録」をここへ移した
 const PERIODS: { id: Period; label: string }[] = [
+  { id: "week", label: "今週" },
   { id: "month", label: "今月" },
   { id: "year", label: "今年" },
   { id: "all", label: "累計" },

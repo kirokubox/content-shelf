@@ -696,3 +696,37 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .scroll-hide-bar.is-hidden { transform: translateY(-100%); }
 .scroll-hide-bar:empty { display: none; }
 @media (prefers-reduced-motion: reduce) { .scroll-hide-bar { transition: none; } }
+
+/* 見た目の整え直し（v0.21.0）：札を減らして文字で読む・作品ページを2列に・並べ替えをシートに */
+/* 一覧の行：種類は札にせず文字で（作品ページの見出しの札はそのまま） */
+.list-sub .medium-tag, .work-sub .medium-tag { padding: 0; border-radius: 0; background: none; color: inherit; font-size: inherit; }
+.list-sub .medium-tag::after, .work-sub .medium-tag::after { content: "・"; }
+.list-sub .medium-tag + *, .work-sub .medium-tag + * { margin-left: 0; }
+.meta-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-sub.dim .meta-line { white-space: normal; }
+.left-note { color: var(--kb-accent-strong); font-weight: 700; }
+.work-sub .expect-note, .work-sub .gap-note { margin-left: 0; font-weight: 600; }
+/* 購入：行の右に縦に並べる */
+.purchase-card .purchase-actions { flex: none; flex-direction: column; align-items: center; gap: 2px; margin: 0; }
+.purchase-card .purchase-actions .text-btn { min-height: 32px; padding: 0 var(--kb-space-2); font-size: var(--kb-fs-xs); }
+/* 並べ替え・年の選択：ブラウザ標準の選択欄をやめ、チップ＋下からのシート */
+.sort-pick { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+/* ホーム：「今見るもの」の下の、今期のアニメの一覧へのリンク */
+.list-foot-link { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; padding: var(--kb-space-3); border: 0; border-top: 1px solid var(--kb-line); background: transparent; color: var(--kb-accent-strong); font-size: var(--kb-fs-s); font-weight: 600; }
+.list-foot-link:active { background: var(--kb-surface-2); }
+/* 作品ページ：目印は1行の文字、操作は主を横いっぱい＋副を2つ並べる、情報は2列 */
+.card .hero-flags { margin: 2px 0 0; color: var(--kb-text-2); font-size: var(--kb-fs-xs); }
+.detail-actions { display: grid; gap: var(--kb-space-2); margin-top: var(--kb-space-3); }
+.wide-btn { width: 100%; justify-content: center; }
+.sub-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--kb-space-2); }
+.card .sub-actions { margin-top: var(--kb-space-3); }
+.sub-actions > * { min-width: 0; padding-left: var(--kb-space-2); padding-right: var(--kb-space-2); }
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kb-space-3) var(--kb-space-4); margin: 0; }
+.fact { min-width: 0; }
+.fact.wide { grid-column: 1 / -1; }
+.fact dt { color: var(--kb-text-2); font-size: var(--kb-fs-xs); }
+.fact dd { margin: 2px 0 0; font-size: var(--kb-fs-s); overflow-wrap: anywhere; }
+.chip-block + .chip-block { margin-top: var(--kb-space-4); }
+.card .memo-text { margin: 0; }
+/* 作品ページの節の見出しを、「記録」の見出しと同じ大きさにそろえる */
+.card h2.card-title { margin: 0 0 var(--kb-space-3); font-size: var(--kb-fs-l); }

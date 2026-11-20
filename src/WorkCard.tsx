@@ -53,6 +53,16 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
   const latest = latestLabel(work, today);
   // 楽しみの日（開催・公開・発売・放送開始）。済の作品には出さない
   const expect = work.status !== "done" ? workExpect(work) : null;
+  const showLeft = work.status === "active" && unconsumed !== null && unconsumed > 0;
+  // その作品だけの目印。強調はせず、日付と同じ行に並べる
+  const notes = [
+    work.airSlot && (work.medium === "anime" || work.medium === "drama") && work.status !== "done" ? formatAirSlot(work.airSlot) : "",
+    isWaitingForNewVolume(work, today) ? "新刊待ち" : "",
+    isTsundoku(work) ? "積読" : "",
+    rerun ? "再放送" : "",
+    work.rounds >= 2 ? roundsLabel(work) : "",
+    work.access === "manga_cafe" ? "漫喫" : "",
+  ].filter(Boolean);
   return (
     <li className="work-card">
       <CoverImg work={work} className="cover-thumb card-cover" onClick={() => onOpen(work)} />
@@ -62,21 +72,22 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
             {work.title}
             {subLabel(work) && <span className="work-season"> {subLabel(work)}</span>}
           </span>
+          {/* 2行目：種類・進み具合・あと何話（札にせず、1行の文字で読む） */}
           <span className="work-sub">
-            <span className="medium-tag">{mediumTag(work)}</span>
-            {[position, latest].filter(Boolean).join("・")}
+            <span className="meta-line">
+              {[mediumTag(work), position, latest].filter(Boolean).join("・")}
+              {showLeft && <span className="left-note">・あと{unconsumed}{UNIT_LABEL[kind]}</span>}
+            </span>
           </span>
+          {/* 3行目：日付と、その作品だけの目印 */}
           <span className="work-sub dim">
-            {/* 予定の作品は「いつ登録したか」、それ以外は最後に触った日 */}
-            {work.status === "wish" ? `登録 ${formatDateShort(isoToDateKey(work.createdAt))}` : `最終 ${formatDateShort(isoToDateKey(work.touchedAt))}`}
-            {work.airSlot && (work.medium === "anime" || work.medium === "drama") && work.status !== "done" && <span className="wait-note">{formatAirSlot(work.airSlot)}</span>}
-            {expect && <span className="expect-note">{expectVerb(work.medium)} {formatFuzzy(expect, today)}</span>}
-            {isWaitingForNewVolume(work, today) && <span className="wait-note">新刊待ち</span>}
-            {isTsundoku(work) && <span className="wait-note">積読</span>}
-            {rerun && <span className="wait-note">再放送</span>}
-            {work.rounds >= 2 && <span className="wait-note">{roundsLabel(work)}</span>}
-            {work.access === "manga_cafe" && <span className="wait-note">漫喫</span>}
-            {gaps.count > 0 && <span className="gap-note">抜け {gaps.count}巻</span>}
+            <span className="meta-line">
+              {/* 予定の作品は「いつ登録したか」、それ以外は最後に触った日 */}
+              {work.status === "wish" ? `登録 ${formatDateShort(isoToDateKey(work.createdAt))}` : `最終 ${formatDateShort(isoToDateKey(work.touchedAt))}`}
+              {notes.length > 0 && `・${notes.join("・")}`}
+              {expect && <span className="expect-note">・{expectVerb(work.medium)} {formatFuzzy(expect, today)}</span>}
+              {gaps.count > 0 && <span className="gap-note">・抜け {gaps.count}巻</span>}
+            </span>
           </span>
         </button>
         {work.medium === "novel" && work.status === "active" && onFinish && (
@@ -85,12 +96,6 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
           </button>
         )}
       </div>
-      {work.status === "active" && unconsumed !== null && unconsumed > 0 && (
-        <span className="unconsumed" aria-label={`あと${unconsumed}${UNIT_LABEL[kind]}`}>
-          <span className="unconsumed-label">あと</span>
-          <span className="unconsumed-num">{unconsumed}<span className="unconsumed-unit">{UNIT_LABEL[kind]}</span></span>
-        </span>
-      )}
       {kind !== "none" && work.status === "active" && (
         <button type="button" className="step-btn" aria-label={`次の${UNIT_LABEL[kind]}を記録（長押しで日付を選ぶ）`} {...press}>
           <Icon name="plus" size={16} />

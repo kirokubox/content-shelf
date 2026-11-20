@@ -64,8 +64,7 @@ function PurchaseRow({ item, tab, today, handlers }: { item: PurchaseItem; tab: 
             {subLabel(w) && <span className="work-season"> {subLabel(w)}</span>}
           </span>
           <span className="work-sub">
-            <span className="medium-tag">{mediumTag(w)}</span>
-            <span className="purchase-line">{line}</span>
+            <span className="purchase-line">{[mediumTag(w), line].filter(Boolean).join("・")}</span>
           </span>
           {item.date && (
             <span className={`work-sub${item.overdue ? " overdue-note" : " dim"}`}>
@@ -74,19 +73,20 @@ function PurchaseRow({ item, tab, today, handlers }: { item: PurchaseItem; tab: 
             </span>
           )}
         </button>
-        {tab !== "owned" && (
-          <div className="purchase-actions">
-            {tab === "planned" && (
-              <button type="button" className="secondary-btn small-btn" onClick={() => (manga ? handlers.onPickVolumes(w, "reserve") : handlers.onSetStage(w, "reserved"))}>
-                予約した
-              </button>
-            )}
-            <button type="button" className="buy-btn" onClick={() => (manga ? handlers.onPickVolumes(w, "buy") : handlers.onSetStage(w, "owned"))}>
-              {tab === "reserved" ? "届いた" : "買った"}
-            </button>
-          </div>
-        )}
       </div>
+      {/* 操作は行の右に縦に（v0.21.0）。主な操作（買った・届いた）を上に、予約したは文字だけのボタン */}
+      {tab !== "owned" && (
+        <div className="purchase-actions">
+          <button type="button" className="step-btn" onClick={() => (manga ? handlers.onPickVolumes(w, "buy") : handlers.onSetStage(w, "owned"))}>
+            {tab === "reserved" ? "届いた" : "買った"}
+          </button>
+          {tab === "planned" && (
+            <button type="button" className="text-btn" onClick={() => (manga ? handlers.onPickVolumes(w, "reserve") : handlers.onSetStage(w, "reserved"))}>
+              予約した
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

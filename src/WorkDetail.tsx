@@ -44,13 +44,21 @@ interface Props {
   onAddRerun: () => void;
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  if (value === null || value === "" || value === undefined) return null;
+type FactItem = { label: string; value: string | null | undefined };
+
+/** 項目名を上、値を下に置く2列の並び（v0.21.0）。長い値だけ横いっぱいに使う */
+function Facts({ items }: { items: FactItem[] }) {
+  const shown = items.filter((x): x is { label: string; value: string } => Boolean(x.value));
+  if (shown.length === 0) return null;
   return (
-    <div className="row">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
+    <dl className="facts">
+      {shown.map((x) => (
+        <div key={x.label} className={`fact${x.value.length > 12 ? " wide" : ""}`}>
+          <dt>{x.label}</dt>
+          <dd>{x.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -96,6 +104,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   }
   if (work.status !== "wish" && kind !== "none") statusItems.push({ label: `${workStatusWord(work, "wish")}にする`, onClick: () => onSetStatus("wish") });
   if (isTsundoku(work)) statusItems.push({ label: work.homePick ? "ホームに出す積読から外す" : "ホームに出す積読にする", onClick: onToggleHomePick });
+  // まれな操作は「…」へ（v0.21.0。以前は作品ページのボタンの並びにあった）
+  if ((work.medium === "anime" || work.medium === "drama") && canAddCurrentRerun(work, today)) statusItems.push({ label: "今期の再放送を足す", onClick: onAddRerun });
   statusItems.push({ label: "作品を削除", danger: true, onClick: onDelete });
 
   const schedule = work.schedule;
@@ -110,11 +120,17 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const expect = workExpect(work);
   const volumeDates = work.owned?.volumeDates ?? [];
   const showCours = work.cours.length > 0;
-  const canRerun = (work.medium === "anime" || work.medium === "drama") && canAddCurrentRerun(work, today);
   // 週刊誌：記録の並びを年ごとに区切る（データは変えない）
   const yearOf = (l: Log) => l.date.slice(0, 4);
   const doneAt = kind !== "none" && work.status === "done" && work.completedAt ? work.completedAt : null;
-  const hasInfo = Boolean(work.platform || work.clearLevel || schedule || work.buying || work.owned?.ranges.length || work.owned?.reserved.length || purchaseText || work.access || expect || volumeDates.length || work.edition || work.workState || showCours || work.partLabel || doneAt || people.length > 0 || work.memo);
+  const hasWorkFacts = Boolean(schedule || work.airSlot || work.workState || expect || work.partLabel || showCours || work.access || work.edition || work.platform || work.clearLevel || doneAt);
+  const hasBuyFacts = Boolean(purchaseText || work.owned?.ranges.length || work.buying || work.owned?.reserved.length || gaps.count > 0 || placeText || volumeDates.length);
+  const heroFlags = [
+    isWaitingForNewVolume(work, today) ? "新刊待ち" : "",
+    isTsundoku(work) ? (work.homePick ? "積読（ホームに出す）" : "積読") : "",
+    work.rounds >= 2 ? roundsLabel(work) : "",
+    work.isOriginal ? "原作" : "",
+  ].filter(Boolean);
   return (
     <Screen
       title={work.title}
@@ -141,12 +157,9 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
             <div className="hero-tags">
               <span className="medium-tag">{mediumTag(work)}</span>
               <span className={`status-pill s-${work.status}`}>{workStatusWord(work, work.status)}</span>
-              {isWaitingForNewVolume(work, today) && <span className="status-pill s-waiting">新刊待ち</span>}
-              {isTsundoku(work) && <span className="status-pill s-waiting">積読</span>}
-              {work.rounds >= 2 && <span className="status-pill s-waiting">{roundsLabel(work)}</span>}
-              {work.homePick && isTsundoku(work) && <span className="status-pill s-waiting">ホームに出す積読</span>}
-              {work.isOriginal && <span className="status-pill s-original">原作</span>}
             </div>
+            {/* 状態以外の目印は札にせず、1行の文字で（v0.21.0） */}
+            {heroFlags.length > 0 && <p className="hero-flags">{heroFlags.join("・")}</p>}
             {franchise && (
               <button type="button" className="hero-link" onClick={() => onOpenFranchise(franchise)}>
                 シリーズ：{franchise.title} <Icon name="chevron-right" size={14} />
@@ -180,95 +193,114 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           </div>
         )}
 
-        <div className="actions">
-          {kind !== "none" && work.status !== "done" && (
-            <button type="button" className="primary-btn" onClick={() => onStep(work)}>
+        {/* 操作（v0.21.0）：主な操作を1つだけ横いっぱいに。ほかは2つまで横に並べ、まれな操作は右上の「…」へ */}
+        <div className="detail-actions">
+          {kind !== "none" && work.status !== "done" ? (
+            <button type="button" className="primary-btn wide-btn" onClick={() => onStep(work)}>
               <Icon name="plus" size={18} /> 次の{unit}を記録
             </button>
-          )}
-          {kind !== "none" && work.status !== "done" && (
-            <button type="button" className="secondary-btn" onClick={() => onAddLog("progress")}>
-              日付を選んで記録
-            </button>
-          )}
-          {canRerun && (
-            <button type="button" className="secondary-btn" onClick={onAddRerun}>今期の再放送を足す</button>
-          )}
-          {work.medium === "manga" && work.buying && <button type="button" className="secondary-btn" onClick={onNewVolume}>新刊が出た</button>}
-          {work.medium === "manga" && (
-            <>
-              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("buy")}>買った巻を選ぶ</button>
-              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("reserve")}>予約した巻を選ぶ</button>
-            </>
-          )}
-          {readingNovel ? (
-            <button type="button" className="primary-btn" onClick={() => onAddLog("view", true)}>
+          ) : readingNovel ? (
+            <button type="button" className="primary-btn wide-btn" onClick={() => onAddLog("view", true)}>
               読み終えた（記録を書く）
             </button>
-          ) : (
-            <button type="button" className={kind === "none" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
-              {kind === "none" ? `${doneWord(work.medium)}記録を追加` : "感想を残す"}
+          ) : kind === "none" ? (
+            <button type="button" className="primary-btn wide-btn" onClick={() => onAddLog("view")}>
+              {doneWord(work.medium)}記録を追加
             </button>
+          ) : null}
+          {kind !== "none" && (
+            <div className="sub-actions">
+              {work.status !== "done" && (
+                <button type="button" className="secondary-btn" onClick={() => onAddLog("progress")}>
+                  日付を選んで記録
+                </button>
+              )}
+              {!readingNovel && (
+                <button type="button" className={work.status === "done" ? "primary-btn" : "secondary-btn"} onClick={() => onAddLog("view")}>
+                  感想を残す
+                </button>
+              )}
+            </div>
           )}
         </div>
       </section>
 
-      {hasInfo && (
-      <section className="card">
-        <dl className="rows">
-          <Row label={kind === "issue" ? "発売" : "放送"} value={schedule ? `毎週${WEEKDAY_LABEL[weekdayOf(schedule.firstDate)]}曜日` : null} />
-          <Row label="放送枠" value={work.airSlot ? `${formatAirSlot(work.airSlot)}${work.airSlot.source === "anilist" ? "（AniList）" : ""}` : null} />
-          <Row label="休みの週" value={schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map((x) => formatDateShort(x)).join("、") : null} />
-          <Row label="作品" value={work.workState ? workStateWord(work.medium, work.workState) : null} />
-          <Row label="クール" value={showCours ? work.cours.map(formatCour).join("、") : null} />
-          <Row label="期・編・巻" value={work.partLabel} />
-          <Row label={expectLabel(work.medium)} value={expect ? formatFuzzy(expect, today) : null} />
-          <Row label="新刊" value={work.buying ? (unbought.length > 0 ? `続きの巻も買う・まだ買っていない ${volumesText(unbought)}巻` : "続きの巻も買う・買い終わっている") : null} />
-          <Row label="購入" value={purchaseText} />
-          <Row label="所持の巻" value={work.owned?.ranges.length ? `${rangesDetailText(work.owned.ranges)}巻` : null} />
-          <Row label="予約済の巻" value={work.owned?.reserved.length ? `${rangesText(work.owned.reserved)}巻` : null} />
-          <Row label="巻ごとの発売日" value={volumeDates.length ? volumeDates.map((v) => `${v.volume}巻 ${formatFuzzy(v.date, today)}`).join("、") : null} />
-          <Row label="抜け" value={gaps.count > 0 ? `${gaps.count}巻（${gaps.text}）` : null} />
-          <Row label="置き場所" value={placeText} />
-          <Row label={work.medium === "manga" ? "読む手段" : "見る手段"} value={work.access ? accessText(work.access, work.accessStore) : null} />
-          <Row label="版" value={work.edition} />
-          <Row label="ハード" value={work.platform} />
-          <Row label="どこまで" value={work.clearLevel ? CLEAR_LABEL[work.clearLevel] : null} />
-          <Row label={work.medium === "manga" ? "読み終えた日" : "見終えた日"} value={doneAt ? formatDate(isoToDateKey(doneAt), today) : null} />
-          <Row
-            label={workPeopleLabel(work)}
-            value={
-              people.length > 0 ? (
-                <span className="row-chips">
-                  {people.map((p) => (
-                    <button key={p.id} type="button" className="chip mini" onClick={() => onOpenPerson(p)}>{p.name}</button>
-                  ))}
-                </span>
-              ) : null
-            }
+      {hasWorkFacts && (
+        <section className="card">
+          <h2 className="card-title">作品</h2>
+          <Facts
+            items={[
+              { label: kind === "issue" ? "発売" : "放送", value: schedule ? `毎週${WEEKDAY_LABEL[weekdayOf(schedule.firstDate)]}曜日` : null },
+              { label: "放送枠", value: work.airSlot ? `${formatAirSlot(work.airSlot)}${work.airSlot.source === "anilist" ? "（AniList）" : ""}` : null },
+              { label: "作品", value: work.workState ? workStateWord(work.medium, work.workState) : null },
+              { label: expectLabel(work.medium), value: expect ? formatFuzzy(expect, today) : null },
+              { label: "期・編・巻", value: work.partLabel },
+              { label: "クール", value: showCours ? work.cours.map(formatCour).join("、") : null },
+              { label: "休みの週", value: schedule && schedule.skipDates.length > 0 ? [...schedule.skipDates].sort().map((x) => formatDateShort(x)).join("、") : null },
+              { label: work.medium === "manga" ? "読む手段" : "見る手段", value: work.access ? accessText(work.access, work.accessStore) : null },
+              { label: "版", value: work.edition },
+              { label: "ハード", value: work.platform },
+              { label: "どこまで", value: work.clearLevel ? CLEAR_LABEL[work.clearLevel] : null },
+              { label: work.medium === "manga" ? "読み終えた日" : "見終えた日", value: doneAt ? formatDate(isoToDateKey(doneAt), today) : null },
+            ]}
           />
-          {linkedWorks && (
-            <Row
-              label={linkedWorks.label}
-              value={
-                linkedWorks.works.length > 0 ? (
-                  <span className="row-chips">
-                    {linkedWorks.works.map((x) => (
-                      <button key={x.id} type="button" className="chip mini" onClick={() => onOpenWork(x)}>{x.title}{x.partLabel ? ` ${x.partLabel}` : ""}</button>
-                    ))}
-                  </span>
-                ) : null
-              }
-            />
+        </section>
+      )}
+
+      {(hasBuyFacts || work.medium === "manga") && (
+        <section className="card">
+          <h2 className="card-title">購入・所持</h2>
+          <Facts
+            items={[
+              { label: "購入", value: purchaseText },
+              { label: "所持の巻", value: work.owned?.ranges.length ? `${rangesDetailText(work.owned.ranges)}巻` : null },
+              { label: "新刊", value: work.buying ? (unbought.length > 0 ? `続きの巻も買う・まだ買っていない ${volumesText(unbought)}巻` : "続きの巻も買う・買い終わっている") : null },
+              { label: "予約済の巻", value: work.owned?.reserved.length ? `${rangesText(work.owned.reserved)}巻` : null },
+              { label: "抜け", value: gaps.count > 0 ? `${gaps.count}巻（${gaps.text}）` : null },
+              { label: "置き場所", value: placeText },
+              { label: "巻ごとの発売日", value: volumeDates.length ? volumeDates.map((v) => `${v.volume}巻 ${formatFuzzy(v.date, today)}`).join("、") : null },
+            ]}
+          />
+          {work.medium === "manga" && (
+            <div className="sub-actions">
+              {work.buying && <button type="button" className="secondary-btn" onClick={onNewVolume}>新刊が出た</button>}
+              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("buy")}>買った巻</button>
+              <button type="button" className="secondary-btn" onClick={() => onPickVolumes("reserve")}>予約した巻</button>
+            </div>
           )}
-        </dl>
-        {work.memo && (
-          <div className="detail-block">
-            <span className="field-label">メモ</span>
-            <p className="memo-text">{work.memo}</p>
-          </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {(people.length > 0 || (linkedWorks && linkedWorks.works.length > 0)) && (
+        <section className="card">
+          {people.length > 0 && (
+            <div className="chip-block">
+              <h2 className="card-title">{workPeopleLabel(work)}</h2>
+              <div className="chips">
+                {people.map((p) => (
+                  <button key={p.id} type="button" className="chip mini" onClick={() => onOpenPerson(p)}>{p.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {linkedWorks && linkedWorks.works.length > 0 && (
+            <div className="chip-block">
+              <h2 className="card-title">{linkedWorks.label}</h2>
+              <div className="chips">
+                {linkedWorks.works.map((x) => (
+                  <button key={x.id} type="button" className="chip mini" onClick={() => onOpenWork(x)}>{x.title}{x.partLabel ? ` ${x.partLabel}` : ""}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {work.memo && (
+        <section className="card">
+          <h2 className="card-title">メモ</h2>
+          <p className="memo-text">{work.memo}</p>
+        </section>
       )}
 
       {work.setlist && (

@@ -10,6 +10,7 @@ import { unboughtVolumes, volumesText } from "./purchaseLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
 import type { Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { rangesDetailText, rangesText } from "./WorkEditor";
+import { SortControl, useSortPref } from "./SortControl";
 
 const PLACE_LABEL = { home: "自宅", parents_home: "実家", both: "自宅と実家", unknown: "場所不明" } as const;
 
@@ -67,7 +68,10 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const unconsumed = unconsumedCount(work, today);
   // 読書中・中断の小説：記録を書くと読了になる入口を主ボタンにする
   const readingNovel = work.medium === "novel" && (work.status === "active" || work.status === "paused");
-  const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  // 記録の並び（v0.19.0）：新しい順・古い順を切り替えられる（端末に記憶）
+  const [logSort, setLogSort] = useSortPref("work-logs");
+  const newestFirst = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const sorted = logSort.dir === "asc" ? newestFirst.reverse() : newestFirst;
   const statusItems: { label: string; onClick: () => void; danger?: boolean }[] = [];
   if (kind !== "none") {
     if (work.status === "done") statusItems.push({ label: work.medium === "manga" ? "もう一度読む（最初から）" : "もう一度見る（最初から）", onClick: onStartAgain });
@@ -259,6 +263,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
         <div className="list-head">
           <h2>記録</h2>
           <span className="muted small">{sorted.length}件</span>
+          {sorted.length > 1 && <SortControl scope="work-logs" value={logSort} onChange={setLogSort} />}
         </div>
         {sorted.length === 0 ? (
           <p className="muted pad">まだ記録はありません。</p>

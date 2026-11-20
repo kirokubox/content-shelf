@@ -673,3 +673,10 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .person-hero { display: flex; align-items: center; gap: var(--kb-space-3); }
 .person-hero .hero-title { margin: 0; }
 .more-people { display: block; width: 100%; padding: var(--kb-space-3); text-align: center; }
+
+/* 並び順の切り替え（v0.19.0） */
+.sort-control { display: flex; align-items: center; gap: var(--kb-space-1); margin-left: auto; flex: none; }
+.sort-select { min-height: 32px; padding: 0 var(--kb-space-2); width: auto; font-size: var(--kb-fs-s); }
+.sort-dir { white-space: nowrap; }
+.list-head:has(.sort-control) { justify-content: flex-start; align-items: center; gap: var(--kb-space-2); }
+.list-head:has(.sort-control) h2 { flex: 1; min-width: 0; }

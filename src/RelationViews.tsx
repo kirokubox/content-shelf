@@ -9,13 +9,15 @@ import { MoreMenu, Screen } from "./Screen";
 import { PersonImg } from "./PersonImg";
 import type { DataSet, Franchise, Log, Person, Work, WorkStatus } from "./types";
 import { MEDIA } from "./types";
+import { SortControl, useSortPref } from "./SortControl";
+import { lastLoggedMap, sortWorks } from "./sortLogic";
+import type { SortPref } from "./sortLogic";
 
 function lastLogOf(data: DataSet, workId: string): Log | null {
   let last: Log | null = null;
   for (const l of data.logs) if (l.deletedAt === null && l.workId === workId && (last === null || l.date > last.date)) last = l;
   return last;
 }
-const lastDateOf = (data: DataSet, workId: string): string | null => lastLogOf(data, workId)?.date ?? null;
 
 /** 一覧の2行目：状態と位置（見終えた作品・見たい作品は状態だけ） */
 function subText(w: Work): string {
@@ -23,9 +25,10 @@ function subText(w: Work): string {
   return [workStatusWord(w, w.status), pos].filter(Boolean).join("・");
 }
 
-function WorkRows({ data, works, onOpen, originalFirst }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void; originalFirst?: boolean }) {
-  // 楽しんだ日の新しい順（記録が無いものは最後に種類・題名の順）
-  const sorted = [...works].sort((a, b) => (originalFirst ? Number(b.isOriginal) - Number(a.isOriginal) : 0) || (lastDateOf(data, b.id) ?? "").localeCompare(lastDateOf(data, a.id) ?? "") || MEDIA.indexOf(a.medium) - MEDIA.indexOf(b.medium) || a.title.localeCompare(b.title, "ja"));
+function WorkRows({ data, works, onOpen, originalFirst, sort }: { data: DataSet; works: Work[]; onOpen: (w: Work) => void; originalFirst?: boolean; sort: SortPref }) {
+  // 並び順（v0.19.0）：既定は記録日の新しい順（記録が無いものは最後に題名順）。シリーズは原作を先に出す枠を崩さない
+  const ordered = sortWorks(works, sort, { lastLogged: lastLoggedMap(data.logs) });
+  const sorted = originalFirst ? [...ordered.filter((w) => w.isOriginal), ...ordered.filter((w) => !w.isOriginal)] : ordered;
   return (
     <ul className="list">
       {sorted.map((w) => {
@@ -87,6 +90,7 @@ function FilterChips({ works, value, onChange }: { works: Work[]; value: Filter;
 /** 親作品：同じ原作のアニメ・マンガ・映画などを1画面で見る */
 export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDelete }: { data: DataSet; franchise: Franchise; onBack: () => void; onOpen: (w: Work) => void; onRename: (title: string) => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
+  const [sortPref, setSortPref] = useSortPref("relation");
   const works = worksOfFranchise(data, franchise.id);
   return (
     <Screen
@@ -101,8 +105,9 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
         <div className="list-head">
           <h2>このシリーズの作品</h2>
           <span className="muted small">{works.length}件</span>
+          {works.length > 1 && <SortControl scope="relation" value={sortPref} onChange={setSortPref} />}
         </div>
-        {works.length === 0 ? <p className="muted pad">作品はありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} originalFirst />}
+        {works.length === 0 ? <p className="muted pad">作品はありません。</p> : <WorkRows data={data} works={works} onOpen={onOpen} originalFirst sort={sortPref} />}
       </section>
     </Screen>
   );
@@ -111,6 +116,7 @@ export function FranchiseView({ data, franchise, onBack, onOpen, onRename, onDel
 /** 人物：登録した作品・公演を横断して見る */
 export function PersonView({ data, person, onBack, onOpen, onRename, onSetImage, onDelete }: { data: DataSet; person: Person; onBack: () => void; onOpen: (w: Work) => void; onRename: (name: string) => void; /** 画像のURLを変える（空で外す） */ onSetImage: (url: string | null) => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
+  const [sortPref, setSortPref] = useSortPref("relation");
   const [filter, setFilter] = useState<Filter>("all");
   const works = worksOfPerson(data, person.id);
   const shown = applyFilter(works, filter);
@@ -153,8 +159,9 @@ export function PersonView({ data, person, onBack, onOpen, onRename, onSetImage,
         <div className="list-head">
           <h2>作品・公演</h2>
           <span className="muted small">{shown.length}件</span>
+          {shown.length > 1 && <SortControl scope="relation" value={sortPref} onChange={setSortPref} />}
         </div>
-        {shown.length === 0 ? <p className="muted pad">まだありません。</p> : <WorkRows data={data} works={shown} onOpen={onOpen} />}
+        {shown.length === 0 ? <p className="muted pad">まだありません。</p> : <WorkRows data={data} works={shown} onOpen={onOpen} sort={sortPref} />}
       </section>
     </Screen>
   );

@@ -15,7 +15,9 @@ import { MonthSummaryView } from "./MonthSummaryView";
 import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
 import { upcomingByMedium } from "./expectLogic";
 import type { UpcomingItem } from "./expectLogic";
-import { formatFuzzy } from "./expectLogic";
+import { formatFuzzy, workExpect } from "./expectLogic";
+import { SortControl, useSortPref } from "./SortControl";
+import { lastLoggedMap, sortWorks } from "./sortLogic";
 
 interface CardHandlers {
   today: string;
@@ -301,10 +303,6 @@ const EMPTY_TEXT: Record<ContinueTab, string> = {
   planned: "予定の作品はありません。",
 };
 
-function kanaKey(w: Work): string {
-  return (w.kana || w.title).normalize("NFKC");
-}
-
 export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: DataSet; handlers: CardHandlers; onAdd: () => void; enabledMedia: Medium[] | null }) {
   const [tab, setTab] = useState<ContinueTab>("current");
   const [medium, setMedium] = useState<Medium | null>(null);
@@ -320,23 +318,27 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
   // 読む手段が漫喫のものだけに絞る（漫喫で読むものが1つでもあるときだけ出す）
   const hasCafe = inTab.some((w) => w.access === "manga_cafe");
   const shown = inTab.filter((w) => (selectedMedium === null || w.medium === selectedMedium) && (!cafeOnly || !hasCafe || w.access === "manga_cafe"));
-  const byRecent = (a: Work, b: Work) => b.touchedAt.localeCompare(a.touchedAt);
+  // 並び順（v0.19.0）：タブごとに記憶。枠（追いついている・やめたもの・積読を先に）は崩さず、枠の中だけ並べ替える
+  const sortScope = tab === "current" ? "continue-current" : tab === "partway" ? "continue-partway" : "continue-planned";
+  const [sortPref, setSortPref] = useSortPref(sortScope);
+  const lastLogged = useMemo(() => lastLoggedMap(data.logs), [data.logs]);
+  const sorted = sortWorks(shown, sortPref, { lastLogged, expectOf: workExpect });
   let main: Work[];
   let caughtUp: Work[] = [];
   let stopped: Work[] = [];
   if (tab === "current") {
     // 見る・読むものがある（未消化がある）ものを上に。追いついたものはたたむ
-    main = shown.filter((w) => hasNext(w, handlers.today)).sort(byRecent);
-    caughtUp = shown.filter((w) => !hasNext(w, handlers.today)).sort(byRecent);
+    main = sorted.filter((w) => hasNext(w, handlers.today));
+    caughtUp = sorted.filter((w) => !hasNext(w, handlers.today));
   } else if (tab === "partway") {
-    // 漫画喫茶で探しやすいよう、題名（読み仮名）順。中断は一番下に「やめたもの」としてたたむ
-    const byKana = (a: Work, b: Work) => kanaKey(a).localeCompare(kanaKey(b), "ja");
-    main = shown.filter((w) => w.status !== "paused").sort(byKana);
-    stopped = shown.filter((w) => w.status === "paused").sort(byKana);
+    // 既定は題名（読み仮名）順（漫画喫茶で探しやすいよう）。中断は一番下に「やめたもの」としてたたむ
+    main = sorted.filter((w) => w.status !== "paused");
+    stopped = sorted.filter((w) => w.status === "paused");
   } else {
     // 積読（予定＋所持）を先に
-    main = [...shown].sort((a, b) => Number(isTsundoku(b)) - Number(isTsundoku(a)) || byRecent(a, b));
+    main = [...sorted.filter(isTsundoku), ...sorted.filter((w) => !isTsundoku(w))];
   }
+  const total = main.length + caughtUp.length + stopped.length;
   return (
     <>
       <div className="segmented" role="tablist">
@@ -354,13 +356,16 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
           </button>
         </div>
       )}
-      {main.length === 0 && caughtUp.length === 0 && stopped.length === 0 ? (
+      {total === 0 ? (
         <Empty text={EMPTY_TEXT[tab]} onAdd={onAdd} />
       ) : (
         <>
+          <div className="records-tools">
+            <p className="muted small count-line">{total}作品</p>
+            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} />
+          </div>
           {main.length > 0 && (
             <section className="card list-card">
-              {tab === "partway" && <p className="muted small pad">{main.length}作品（題名順）</p>}
               <ul className="work-list">
                 {main.map((w) => (
                   <WorkCard key={w.id} work={w} {...handlers} />
@@ -410,7 +415,10 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
   const [mode, setMode] = useState<"list" | "grid">("list");
   const [medium, setMedium] = useState<Medium | null>(null);
   const [year, setYear] = useState<string | null>(null);
-  const all = useMemo(() => buildRecordItems(data), [data]);
+  const built = useMemo(() => buildRecordItems(data), [data]);
+  // 並び順（v0.19.0）：記録日の新しい順・古い順。1行＝記録1回
+  const [sortPref, setSortPref] = useSortPref("records");
+  const all = useMemo(() => (sortPref.dir === "asc" ? [...built].reverse() : built), [built, sortPref.dir]);
   const availableMedia = MEDIA.filter((m) => all.some((i) => i.work.medium === m));
   const media = visibleFilterMedia(availableMedia, enabledMedia);
   const selectedMedium = medium !== null && media.includes(medium) ? medium : null;
@@ -423,6 +431,7 @@ export function RecordsView({ data, onOpen, enabledMedia }: { data: DataSet; onO
       <div className="records-tools">
         <p className="muted small count-line">{items.length}件</p>
         <div className="records-right">
+          <SortControl scope="records" value={sortPref} onChange={setSortPref} />
           {years.length > 1 && (
             <select className="text-input year-select" value={year ?? ""} onChange={(e) => setYear(e.target.value || null)} aria-label="年">
               <option value="">すべての年</option>

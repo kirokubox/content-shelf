@@ -8,6 +8,9 @@ import { formatFuzzy } from "./expectLogic";
 import { SegRow } from "./formParts";
 import { visibleFilterMedia } from "./mediaPrefs";
 import { defaultShape, purchaseList, unboughtVolumes, volumeList, volumesText } from "./purchaseLogic";
+import { SortControl, useSortPref } from "./SortControl";
+import { sortItems } from "./sortLogic";
+import type { SortScope } from "./sortLogic";
 import type { PurchaseItem, PurchaseTab, Shape } from "./purchaseLogic";
 import type { DataSet, DigitalStore, Medium, RangeMedium, Work } from "./types";
 import { DIGITAL_STORES, MEDIA } from "./types";
@@ -90,7 +93,13 @@ function PurchaseRow({ item, tab, today, handlers }: { item: PurchaseItem; tab: 
 export function PurchaseView({ data, today, handlers, enabledMedia }: { data: DataSet; today: string; handlers: PurchaseHandlers; enabledMedia: Medium[] | null }) {
   const [tab, setTab] = useState<PurchaseTab>("planned");
   const [medium, setMedium] = useState<Medium | null>(null);
-  const all = useMemo(() => purchaseList(data.works, tab, today), [data.works, tab, today]);
+  // 並び順（v0.19.0）：タブごとに記憶。「発売日を過ぎても予約済み」の枠は崩さず、枠の中だけ並べ替える
+  const sortScope: SortScope = tab === "planned" ? "purchase-planned" : tab === "reserved" ? "purchase-reserved" : "purchase-owned";
+  const [sortPref, setSortPref] = useSortPref(sortScope);
+  const all = useMemo(
+    () => sortItems(purchaseList(data.works, tab, today), sortPref, { work: (i) => i.work, expect: (i) => i.date }),
+    [data.works, tab, today, sortPref],
+  );
   const media = visibleFilterMedia(MEDIA.filter((m) => all.some((i) => i.work.medium === m)), enabledMedia);
   const selected = medium !== null && media.includes(medium) ? medium : null;
   const shown = all.filter((i) => selected === null || i.work.medium === selected);
@@ -117,6 +126,10 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
         <div className="empty"><p>{EMPTY[tab]}</p></div>
       ) : (
         <>
+          <div className="records-tools">
+            <p className="muted small count-line">{shown.length}件</p>
+            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} />
+          </div>
           {overdue.length > 0 && (
             <section className="card list-card overdue-card">
               <p className="pad small overdue-head">発売日を過ぎても予約済みのもの（{overdue.length}件）</p>
@@ -127,7 +140,6 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
           )}
           {rest.length > 0 && (
             <section className="card list-card">
-              <p className="muted small pad">{rest.length}件（{tab === "owned" ? "追加した順" : "楽しみの日が近い順 → 追加した順"}）</p>
               <ul className="work-list">
                 {rest.map((i) => <PurchaseRow key={i.work.id} item={i} tab={tab} today={today} handlers={handlers} />)}
               </ul>

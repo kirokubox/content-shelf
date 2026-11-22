@@ -12,6 +12,7 @@ import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
 import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
 import { MonthSummaryView } from "./MonthSummaryView";
+import { YearSummaryView } from "./YearSummaryView";
 import { continueGroup, hasNext, homeTsundoku, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
 import { upcomingByMedium } from "./expectLogic";
 import type { UpcomingItem } from "./expectLogic";
@@ -464,6 +465,7 @@ export function SummaryView({ data, today, onOpen }: { data: DataSet; today: str
   const [period, setPeriod] = useState<Period>("month");
   // 月のまとめを開いている月（YYYY-MM）。閉じているときは null
   const [openMonth, setOpenMonth] = useState<string | null>(null);
+  const [openYear, setOpenYear] = useState<string | null>(null);
   const rows = summarize(data, period, today);
   const done = completedWorks(data, period, today);
   const months = monthlyCounts(data, today.slice(0, 4));
@@ -504,6 +506,9 @@ export function SummaryView({ data, today, onOpen }: { data: DataSet; today: str
             今月のまとめを見る
           </button>
         )}
+        {period === "year" && (
+          <button type="button" className="secondary-btn month-open" onClick={() => setOpenYear(today.slice(0, 4))}>年のまとめを見る</button>
+        )}
       </section>
       <section className="card">
         <h2>{today.slice(0, 4)}年の月ごとの記録</h2>
@@ -524,6 +529,9 @@ export function SummaryView({ data, today, onOpen }: { data: DataSet; today: str
       </section>
       {openMonth && (
         <MonthSummaryView data={data} month={openMonth} today={today} onChangeMonth={setOpenMonth} onBack={() => setOpenMonth(null)} onOpen={onOpen} />
+      )}
+      {openYear && !openMonth && (
+        <YearSummaryView data={data} year={openYear} onChangeYear={setOpenYear} onOpenMonth={setOpenMonth} onBack={() => setOpenYear(null)} onOpen={onOpen} />
       )}
       <p className="muted small center">{formatDate(today, today)}時点</p>
     </>

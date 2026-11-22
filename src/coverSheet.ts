@@ -91,8 +91,8 @@ export function wrapTitle(title: string, maxWidth: number, maxLines: number, mea
   return lines;
 }
 
-export async function buildCoverSheet(heading: string, works: CoverWork[]): Promise<CoverSheetResult> {
-  const list = works.slice(0, COVER_SHEET_LIMIT);
+export async function buildCoverSheet(heading: string, works: CoverWork[], limit = COVER_SHEET_LIMIT): Promise<CoverSheetResult> {
+  const list = works.slice(0, limit);
   const cols = coverSheetColumns(list.length);
   const rows = Math.max(1, Math.ceil(list.length / cols));
   const tileW = Math.floor((WIDTH - PAD * 2 - GAP * (cols - 1)) / cols);

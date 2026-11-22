@@ -146,3 +146,46 @@ export function shiftMonth(month: string, n: number): string {
 export function monthLabel(month: string): string {
   return `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`;
 }
+
+export interface YearSummary extends Omit<MonthSummary, "month"> {
+  year: string;
+  busiestMonth: { month: string; count: number } | null;
+}
+
+/** 年が分かる記録だけで作る。日付不明は含めない。 */
+export function yearSummary(data: DataSet, year: string): YearSummary {
+  const { logs, mediumOf } = liveLogs(data);
+  const map = new Map<string, MonthWork>();
+  const months = Array.from({ length: 12 }, () => 0);
+  let totalLogs = 0;
+  for (const l of logs) {
+    if (l.datePrecision === "unknown" || l.date.slice(0, 4) !== year) continue;
+    totalLogs += 1;
+    if (l.datePrecision !== "year") months[Number(l.date.slice(5, 7)) - 1] += 1;
+    const cur = map.get(l.workId);
+    if (!cur) {
+      map.set(l.workId, { workId: l.workId, medium: mediumOf.get(l.workId)!, count: 1, rating: l.rating, firstDate: l.date });
+    } else {
+      cur.count += 1;
+      if (l.rating !== null && (cur.rating === null || l.rating > cur.rating)) cur.rating = l.rating;
+      if (l.date < cur.firstDate) cur.firstDate = l.date;
+    }
+  }
+  const works = [...map.values()].sort((a, b) => a.firstDate.localeCompare(b.firstDate) || a.workId.localeCompare(b.workId));
+  const byMedium = MEDIA.map((medium) => {
+    const list = works.filter((w) => w.medium === medium);
+    return { medium, works: list.length, count: list.reduce((sum, w) => sum + w.count, 0) };
+  }).filter((row) => row.works > 0);
+  const completed = data.works.filter((w) => w.deletedAt === null && w.status === "done" && w.completedAt?.slice(0, 4) === year).length;
+  const topRated = works.filter((w) => w.rating !== null && w.rating >= TOP_RATED_MIN)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || a.firstDate.localeCompare(b.firstDate)).slice(0, 12);
+  const max = Math.max(...months);
+  const index = months.indexOf(max);
+  const busiestMonth = max > 0 ? { month: `${year}-${String(index + 1).padStart(2, "0")}`, count: max } : null;
+  return { year, works, byMedium, totalLogs, completed, topRated, busiestMonth };
+}
+
+export function recordedYears(data: DataSet): string[] {
+  const liveWorkIds = new Set(data.works.filter((w) => w.deletedAt === null).map((w) => w.id));
+  return [...new Set(data.logs.filter((l) => l.deletedAt === null && l.datePrecision !== "unknown" && liveWorkIds.has(l.workId)).map((l) => l.date.slice(0, 4)))].sort();
+}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { monthlyCounts, periodRange, summarize } from "../src/summaryLogic.js";
+import { monthlyCounts, periodRange, recordedYears, summarize, yearSummary } from "../src/summaryLogic.js";
 import { emptyWork, newLog } from "../src/workFactory.js";
 
 const NOW = "2026-10-31T03:00:00.000Z";
@@ -42,4 +42,21 @@ test("週は月曜から日曜で、年だけの記録は数えない", () => {
   const data = { franchises: [], people: [], works: [novel], logs };
   assert.deepEqual(periodRange("week", "2026-11-12"), { from: "2026-11-09", to: "2026-11-15" });
   assert.deepEqual(summarize(data, "week", "2026-11-12"), [{ medium: "novel", works: 1, count: 2 }]);
+});
+
+test("年のまとめは日付不明を除き、最多月と作品数を数える", () => {
+  const work = { ...emptyWork("movie", NOW), title: "架空の映画" };
+  const logs = [
+    newLog({ workId: work.id, kind: "view", date: "2025-12-31" }, NOW),
+    { ...newLog({ workId: work.id, kind: "view", date: "2026-01-01" }, NOW), rating: 5 },
+    newLog({ workId: work.id, kind: "view", date: "2026-02-02" }, NOW),
+    newLog({ workId: work.id, kind: "view", date: "2026-02-03" }, NOW),
+    { ...newLog({ workId: work.id, kind: "view", date: "1900-01-01" }, NOW), datePrecision: "unknown" as const },
+  ];
+  const data = { franchises: [], people: [], works: [work], logs };
+  assert.deepEqual(recordedYears(data), ["2025", "2026"]);
+  assert.equal(yearSummary(data, "2026").totalLogs, 3);
+  assert.equal(yearSummary(data, "2026").works.length, 1);
+  assert.equal(yearSummary(data, "2026").topRated.length, 1);
+  assert.deepEqual(yearSummary(data, "2026").busiestMonth, { month: "2026-02", count: 2 });
 });

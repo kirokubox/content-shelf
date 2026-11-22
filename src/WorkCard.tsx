@@ -72,11 +72,13 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
             {work.title}
             {subLabel(work) && <span className="work-season"> {subLabel(work)}</span>}
           </span>
-          {/* 2行目：種類・進み具合・あと何話（札にせず、1行の文字で読む） */}
+          {/* 2行目：種類・進み具合・あと何話・出ている最新（札にせず、1行の文字で読む）。
+              幅が足りないときは末尾が「…」で切れるので、いちばん大事な「あと何話」を最新より先に置く（v0.21.1） */}
           <span className="work-sub">
             <span className="meta-line">
-              {[mediumTag(work), position, latest].filter(Boolean).join("・")}
+              {[mediumTag(work), position].filter(Boolean).join("・")}
               {showLeft && <span className="left-note">・あと{unconsumed}{UNIT_LABEL[kind]}</span>}
+              {latest && `・${latest}`}
             </span>
           </span>
           {/* 3行目：日付と、その作品だけの目印 */}

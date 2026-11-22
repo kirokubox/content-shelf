@@ -730,3 +730,10 @@ select.text-input { padding: 0 var(--kb-space-2); }
 .card .memo-text { margin: 0; }
 /* 作品ページの節の見出しを、「記録」の見出しと同じ大きさにそろえる */
 .card h2.card-title { margin: 0 0 var(--kb-space-3); font-size: var(--kb-fs-l); }
+/* 作品ページの情報を1枚のカードに（v0.21.2）：節は小見出し＋細い線。カードを増やさない */
+.info-card { display: grid; gap: 0; padding-top: var(--kb-space-2); padding-bottom: var(--kb-space-2); }
+.info-block { padding: var(--kb-space-3) 0; }
+.info-block + .info-block { border-top: 1px solid var(--kb-line); }
+.card .info-head { margin: 0 0 var(--kb-space-2); color: var(--kb-text-2); font-size: var(--kb-fs-s); font-weight: 700; }
+.info-block .sub-actions { margin-top: var(--kb-space-3); }
+.info-block .chip-block + .chip-block { margin-top: var(--kb-space-3); }

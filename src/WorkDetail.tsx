@@ -125,6 +125,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const doneAt = kind !== "none" && work.status === "done" && work.completedAt ? work.completedAt : null;
   const hasWorkFacts = Boolean(schedule || work.airSlot || work.workState || expect || work.partLabel || showCours || work.access || work.edition || work.platform || work.clearLevel || doneAt);
   const hasBuyFacts = Boolean(purchaseText || work.owned?.ranges.length || work.buying || work.owned?.reserved.length || gaps.count > 0 || placeText || volumeDates.length);
+  const hasInfoCard = hasWorkFacts || hasBuyFacts || work.medium === "manga" || people.length > 0 || Boolean(linkedWorks && linkedWorks.works.length > 0) || Boolean(work.memo);
   const heroFlags = [
     isWaitingForNewVolume(work, today) ? "新刊待ち" : "",
     isTsundoku(work) ? (work.homePick ? "積読（ホームに出す）" : "積読") : "",
@@ -225,9 +226,12 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
         </div>
       </section>
 
+      {/* 情報は1枚のカードにまとめる（v0.21.2）。節ごとに小見出しと細い線で区切り、カードは増やさない */}
+      {hasInfoCard && (
+      <section className="card info-card">
       {hasWorkFacts && (
-        <section className="card">
-          <h2 className="card-title">作品</h2>
+        <div className="info-block">
+          <h3 className="info-head">作品</h3>
           <Facts
             items={[
               { label: kind === "issue" ? "発売" : "放送", value: schedule ? `毎週${WEEKDAY_LABEL[weekdayOf(schedule.firstDate)]}曜日` : null },
@@ -244,12 +248,12 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               { label: work.medium === "manga" ? "読み終えた日" : "見終えた日", value: doneAt ? formatDate(isoToDateKey(doneAt), today) : null },
             ]}
           />
-        </section>
+        </div>
       )}
 
       {(hasBuyFacts || work.medium === "manga") && (
-        <section className="card">
-          <h2 className="card-title">購入・所持</h2>
+        <div className="info-block">
+          <h3 className="info-head">購入・所持</h3>
           <Facts
             items={[
               { label: "購入", value: purchaseText },
@@ -268,14 +272,14 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               <button type="button" className="secondary-btn" onClick={() => onPickVolumes("reserve")}>予約した巻</button>
             </div>
           )}
-        </section>
+        </div>
       )}
 
       {(people.length > 0 || (linkedWorks && linkedWorks.works.length > 0)) && (
-        <section className="card">
+        <div className="info-block">
           {people.length > 0 && (
             <div className="chip-block">
-              <h2 className="card-title">{workPeopleLabel(work)}</h2>
+              <h3 className="info-head">{workPeopleLabel(work)}</h3>
               <div className="chips">
                 {people.map((p) => (
                   <button key={p.id} type="button" className="chip mini" onClick={() => onOpenPerson(p)}>{p.name}</button>
@@ -285,7 +289,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           )}
           {linkedWorks && linkedWorks.works.length > 0 && (
             <div className="chip-block">
-              <h2 className="card-title">{linkedWorks.label}</h2>
+              <h3 className="info-head">{linkedWorks.label}</h3>
               <div className="chips">
                 {linkedWorks.works.map((x) => (
                   <button key={x.id} type="button" className="chip mini" onClick={() => onOpenWork(x)}>{x.title}{x.partLabel ? ` ${x.partLabel}` : ""}</button>
@@ -293,14 +297,16 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
               </div>
             </div>
           )}
-        </section>
+        </div>
       )}
 
       {work.memo && (
-        <section className="card">
-          <h2 className="card-title">メモ</h2>
+        <div className="info-block">
+          <h3 className="info-head">メモ</h3>
           <p className="memo-text">{work.memo}</p>
-        </section>
+        </div>
+      )}
+      </section>
       )}
 
       {work.setlist && (

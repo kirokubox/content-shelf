@@ -206,6 +206,8 @@ export type LogKind = "progress" | "view";
 /** 楽しんだ記録。再視聴・再読は上書きせず追加する */
 export interface Log extends Base {
   workId: string;
+  /** この記録に付けた写真。古い記録は項目が無い */
+  photoIds?: string[];
   kind: LogKind;
   /** 楽しんだ日 YYYY-MM-DD */
   date: string;
@@ -253,6 +255,8 @@ export interface BackupFile extends DataSet {
 export interface PhotoMeta {
   id: string;
   workId: string;
+  /** 記録の写真だけに付く。表紙には無い */
+  logId?: string;
   mimeType: string;
   width: number;
   height: number;

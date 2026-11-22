@@ -124,6 +124,7 @@ export function normalizeWork(w: Work): Work {
 export function normalizeLog(l: Log): Log {
   const precision = l.datePrecision === "month" || l.datePrecision === "year" || l.datePrecision === "unknown" ? l.datePrecision : l.datePrecision === "day" ? "day" : undefined;
   const out: Log = { ...l, via: LOG_VIAS.find((v) => v === l.via) ?? null, place: typeof l.place === "string" ? l.place : "", source: typeof l.source === "string" ? l.source : "" };
+  if (l.photoIds !== undefined) out.photoIds = Array.isArray(l.photoIds) ? [...new Set(l.photoIds.filter((id): id is string => typeof id === "string" && id !== ""))].slice(0, 10) : [];
   if (precision) out.datePrecision = precision;
   else delete out.datePrecision;
   return out;

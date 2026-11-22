@@ -3,6 +3,7 @@ import { subLabel, viaPlaceParts } from "./courLogic";
 import { UNIT_LABEL, mediumTag } from "./constants";
 import { formatDateShort, formatLogDate } from "./dateUtils";
 import { Icon } from "./Icon";
+import { LogPhotos } from "./LogPhotos";
 import { addReaderLogLabel, readerPosition } from "./logReaderLogic";
 import { progressKindOf } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
@@ -70,6 +71,7 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
           <span className="field-label">感想・メモ</span>
           {log.note ? <p>{log.note}</p> : <p className="muted">感想・メモはありません。</p>}
         </div>
+        {(log.photoIds?.length ?? 0) > 0 && <div className="log-reader-note"><span className="field-label">写真</span><LogPhotos ids={log.photoIds ?? []} /></div>}
       </section>
     </Screen>
   );

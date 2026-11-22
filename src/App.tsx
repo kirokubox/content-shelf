@@ -17,13 +17,13 @@ import { PurchaseView, VolumePickSheet } from "./PurchaseView";
 import { FranchiseView, PersonView } from "./RelationViews";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
-import { loadAll, putRecords, replaceAll, requestPersist } from "./storage";
+import { deletePhoto, getPhoto, loadAll, putPhotos, putRecords, replaceAll, requestPersist } from "./storage";
 import { TabBar, TABS } from "./TabBar";
 import type { TabId } from "./TabBar";
 import { ContinueView, CourView, HomeView, RecordsView, SummaryView } from "./TabViews";
 import { useToast } from "./Toast";
 import { discsOfLive, splitLiveDiscs } from "./liveDisc";
-import type { DataSet, Log, Medium, Work, WorkStatus } from "./types";
+import type { DataSet, Log, Medium, StoredPhoto, Work, WorkStatus } from "./types";
 import { WorkDetail } from "./WorkDetail";
 import { WorkEditor } from "./WorkEditor";
 import { newLog } from "./workFactory";
@@ -181,27 +181,36 @@ export default function App() {
     });
   };
 
-  const saveLog = (work: Work, log: Log, isNew: boolean, finish = false) => {
+  const saveLog = async (work: Work, log: Log, isNew: boolean, finish = false, photos: StoredPhoto[] = [], removedIds: string[] = []): Promise<boolean> => {
+    try {
+      await putPhotos(photos);
+    } catch {
+      return false;
+    }
     const kind = progressKindOf(work);
+    let saved = false;
     if (isNew && log.kind === "progress" && kind === "issue") {
       // 週刊誌の長押し：選んだ日で次の号を読んだことにする
       const r = stepForward(work, log.date, today);
-      if ("error" in r) return showToast(r.error);
-      commit({ works: [r.work], logs: [{ ...log, issueDate: r.log.issueDate }] });
+      if ("error" in r) { showToast(r.error); return false; }
+      saved = await commit({ works: [r.work], logs: [{ ...log, issueDate: r.log.issueDate }] });
     } else if (log.kind === "progress" && log.position !== null && (kind === "episode" || kind === "volume") && log.position > (work.progress ?? 0)) {
       const now = nowIso();
       const updated = withAutoStatus({ ...work, progress: log.position, status: work.status === "wish" || work.status === "paused" ? "active" : work.status, touchedAt: now, updatedAt: now }, now);
-      commit({ works: [updated], logs: [log] });
+      saved = await commit({ works: [updated], logs: [log] });
     } else if (finish && isNew && work.status !== "done") {
       // 読書中の小説の「読み終えた」：記録を保存したら読了にする
       const now = nowIso();
-      commit({ works: [{ ...work, status: "done", completedAt: work.completedAt ?? now, touchedAt: now, updatedAt: now }], logs: [log] });
+      saved = await commit({ works: [{ ...work, status: "done", completedAt: work.completedAt ?? now, touchedAt: now, updatedAt: now }], logs: [log] });
     } else {
       const now = nowIso();
-      commit({ works: [{ ...work, touchedAt: now }], logs: [log] });
+      saved = await commit({ works: [{ ...work, touchedAt: now }], logs: [log] });
     }
+    if (!saved) return false;
+    for (const id of removedIds) await deletePhoto(id).catch(() => undefined);
     setSheet(null);
     showToast(isNew ? "記録しました" : "記録を直しました");
+    return true;
   };
 
   const setStatus = (work: Work, status: WorkStatus) => {
@@ -493,11 +502,15 @@ export default function App() {
           today={today}
           newKind={sheet.newKind}
           onClose={() => setSheet(null)}
-          onSave={(log) => saveLog(sheetWork, log, sheet.log === null, sheet.finish === true)}
+          onSave={(log, photos, removedIds) => saveLog(sheetWork, log, sheet.log === null, sheet.finish === true, photos, removedIds)}
           onDelete={(log) => {
-            commit({ logs: [{ ...log, deletedAt: nowIso() }] });
-            setSheet(null);
-            showToast("記録を削除しました", 5000, { label: "取り消す", onClick: () => commit({ logs: [log] }) });
+            void (async () => {
+              const photos = (await Promise.all((log.photoIds ?? []).map((id) => getPhoto(id)))).filter((p): p is StoredPhoto => !!p);
+              if (!await commit({ logs: [{ ...log, deletedAt: nowIso() }] })) return;
+              for (const id of log.photoIds ?? []) await deletePhoto(id).catch(() => undefined);
+              setSheet(null);
+              showToast("記録を削除しました", 5000, { label: "取り消す", onClick: () => { void (async () => { await putPhotos(photos); await commit({ logs: [log] }); })(); } });
+            })();
           }}
         />
       )}

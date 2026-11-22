@@ -4,6 +4,7 @@ import { CLEAR_LABEL, PURCHASE_STAGE_LABEL, UNIT_LABEL, accessText, expectLabel,
 import { canAddCurrentRerun, formatCour, subLabel, viaPlaceText } from "./courLogic";
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
+import { LogPhotos } from "./LogPhotos";
 import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
 import { formatFuzzy, workExpect } from "./expectLogic";
 import { unboughtVolumes, volumesText } from "./purchaseLogic";
@@ -67,6 +68,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const gaps = ownedGapSummary(work);
   const [menu, setMenu] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
   const hasCover = Boolean(work.coverPhotoId || work.coverUrl);
   useEffect(() => {
     if (!coverOpen) return;
@@ -83,7 +85,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   // 記録の並び（v0.19.0）：新しい順・古い順を切り替えられる（端末に記憶）
   const [logSort, setLogSort] = useSortPref("work-logs");
   const newestFirst = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
-  const sorted = logSort.dir === "asc" ? newestFirst.reverse() : newestFirst;
+  const sorted = logSort.dir === "asc" ? [...newestFirst].reverse() : newestFirst;
+  const photoEntries = newestFirst.flatMap((log) => (log.photoIds ?? []).map((id) => ({ id, log })));
   const statusItems: { label: string; onClick: () => void; danger?: boolean }[] = [];
   if (kind !== "none") {
     if (work.status === "done") statusItems.push({ label: work.medium === "manga" ? "もう一度読む（最初から）" : "もう一度見る（最初から）", onClick: onStartAgain });
@@ -316,6 +319,10 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
         </section>
       )}
 
+      {photoEntries.length > 0 && <section className="card"><h2>写真</h2>
+        <LogPhotos ids={(showAllPhotos ? photoEntries : photoEntries.slice(0, 3)).map((entry) => entry.id)} onOpenPhoto={(id) => { const entry = photoEntries.find((item) => item.id === id); if (entry) onEditLog(entry.log); }} />
+        {photoEntries.length > 3 && <button type="button" className="secondary-btn" onClick={() => setShowAllPhotos((value) => !value)}>{showAllPhotos ? "閉じる" : `すべて（${photoEntries.length}枚）`}</button>}
+      </section>}
       <section className="card list-card">
         <div className="list-head">
           <h2>記録</h2>

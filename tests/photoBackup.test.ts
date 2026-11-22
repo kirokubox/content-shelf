@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { parseBackup } from "../src/backup.js";
 import { normalizeData } from "../src/dataOps.js";
 import { assemblePhotos, buildBackupFile, readBackupFile, referencedPhotos } from "../src/photoBackup.js";
-import { emptyWork } from "../src/workFactory.js";
+import { emptyWork, newLog } from "../src/workFactory.js";
 import type { DataSet, StoredPhoto } from "../src/types.js";
 
 const NOW = "2026-11-03T03:00:00.000Z";
@@ -58,4 +58,20 @@ test("前の版のバックアップ（coverPhotoId が無い）も読める", (
   delete w.coverPhotoId;
   const d = normalizeData({ franchises: [], works: [w as ReturnType<typeof emptyWork>], logs: [], people: [] });
   assert.equal(d.works[0].coverPhotoId, null);
+});
+
+test("記録の写真は表紙と別にZIPへ入り、記録を消すと対象から外れる", async () => {
+  const data = dataWith(null);
+  const log = { ...newLog({ workId: "w1", kind: "view", date: "2026-11-03" }, NOW), photoIds: ["log-ph"] };
+  data.logs.push(log);
+  const image = { ...photo("log-ph", "w1", [4, 5, 6]), logId: log.id };
+  const backup = await buildBackupFile(data, [image], NOW, "2026-11-03");
+  assert.equal(backup.photoCount, 1);
+  const { text, blobs } = await readBackupFile(backup.blob);
+  const parsed = parseBackup(text);
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.deepEqual(parsed.data.logs[0].photoIds, ["log-ph"]);
+  assert.equal(assemblePhotos(text, blobs).photos[0].logId, log.id);
+  data.logs[0] = { ...log, deletedAt: NOW };
+  assert.equal(referencedPhotos(data, [image]).length, 0);
 });

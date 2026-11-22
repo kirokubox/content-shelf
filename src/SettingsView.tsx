@@ -196,7 +196,7 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
       <section className="card">
         <h2>バックアップ</h2>
         <p className="muted small">
-          データはこの端末のブラウザの中だけにあります（いま {works}作品・{logs}件の記録）。ときどき保存しておくと安心です。自分で撮った表紙の写真があるときは、写真ごとZIPで保存します。
+          データはこの端末のブラウザの中だけにあります（いま {works}作品・{logs}件の記録）。ときどき保存しておくと安心です。表紙や記録の写真があるときは、写真ごとZIPで保存します。文字だけのバックアップには写真の本体は入りません。
         </p>
         <div className="setting-list">
           <button type="button" className="setting-row" disabled={busy} onClick={() => void saveBackup()}>

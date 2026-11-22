@@ -17,12 +17,13 @@ export function photoPath(meta: Pick<PhotoMeta, "id" | "mimeType">): string {
 }
 
 export function toMeta(p: StoredPhoto): PhotoMeta {
-  return { id: p.id, workId: p.workId, mimeType: p.mimeType, width: p.width, height: p.height, byteSize: p.byteSize, createdAt: p.createdAt };
+  return { id: p.id, workId: p.workId, ...(p.logId ? { logId: p.logId } : {}), mimeType: p.mimeType, width: p.width, height: p.height, byteSize: p.byteSize, createdAt: p.createdAt };
 }
 
 /** 作品から使われている写真だけ（差し替えの途中で残ったものは入れない） */
 export function referencedPhotos(data: DataSet, photos: readonly StoredPhoto[]): StoredPhoto[] {
   const ids = new Set(data.works.map((w) => w.coverPhotoId).filter((id): id is string => !!id));
+  for (const log of data.logs) if (log.deletedAt === null) for (const id of log.photoIds ?? []) ids.add(id);
   return photos.filter((p) => ids.has(p.id));
 }
 
@@ -82,7 +83,7 @@ export function assemblePhotos(text: string, blobs: Map<string, Blob>): { photos
       continue;
     }
     const typed = blob.type === m.mimeType ? blob : new Blob([blob], { type: m.mimeType });
-    photos.push({ id: m.id, workId: m.workId, mimeType: m.mimeType, width: Number(m.width) || 0, height: Number(m.height) || 0, byteSize: typed.size, createdAt: m.createdAt, blob: typed });
+    photos.push({ id: m.id, workId: m.workId, ...(typeof m.logId === "string" ? { logId: m.logId } : {}), mimeType: m.mimeType, width: Number(m.width) || 0, height: Number(m.height) || 0, byteSize: typed.size, createdAt: m.createdAt, blob: typed });
   }
   return { photos, missing };
 }

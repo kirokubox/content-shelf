@@ -429,6 +429,11 @@ textarea.text-input { font: inherit; resize: vertical; line-height: 1.6; padding
 .log-reader-rating { margin-top: var(--kb-space-3); }
 .log-reader-note { margin-top: var(--kb-space-4); padding-top: var(--kb-space-3); border-top: 1px solid var(--kb-line); }
 .log-reader-note p { margin: var(--kb-space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
+.log-photo-grid { display: flex; gap: var(--kb-space-2); overflow-x: auto; padding: var(--kb-space-2) 0; }
+.log-photo-tile { position: relative; flex: 0 0 88px; height: 88px; }
+.log-photo-button { width: 100%; height: 100%; padding: 0; border-radius: var(--kb-radius-s); overflow: hidden; background: var(--kb-surface-2); }
+.log-photo-image { width: 100%; height: 100%; object-fit: cover; }
+.log-photo-remove { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; border-radius: 50%; background: var(--kb-surface); box-shadow: 0 1px 4px #0004; }
 .log-reader-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-2); margin-bottom: var(--kb-space-3); padding-bottom: var(--kb-space-3); border-bottom: 1px solid var(--kb-line); }
 .log-reader-nav > div { display: flex; gap: var(--kb-space-2); }
 .log-reader-nav .secondary-btn { padding: 8px 10px; }

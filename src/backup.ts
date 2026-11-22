@@ -58,6 +58,7 @@ function checkWorkV2(r: unknown): r is Work {
 function checkLog(r: unknown): r is Log {
   if (!isObj(r) || !checkBase(r)) return false;
   if (r.via !== undefined && r.via !== null && !(LOG_VIAS as readonly unknown[]).includes(r.via)) return false;
+  if (r.photoIds !== undefined && (!Array.isArray(r.photoIds) || r.photoIds.length > 10 || !r.photoIds.every((id: unknown) => typeof id === "string" && id.length > 0))) return false;
   return isStr(r.workId) && (r.kind === "progress" || r.kind === "view") && isDateKey(r.date) && isNumOrNull(r.position) && isStr(r.note);
 }
 

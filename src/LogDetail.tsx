@@ -29,9 +29,16 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
       title="記録を読む"
       onBack={onBack}
       actions={
-        <button type="button" className="text-action" onClick={onEdit}>
-          <Icon name="pencil" size={17} /> 編集
-        </button>
+        // 右上に「作品へ」「記録を足す」「編集」（v0.22.0。2026-11-22 本人「動線が右上でもいいかも」）
+        <>
+          <button type="button" className="text-action" onClick={onOpenWork}>作品へ</button>
+          <button type="button" className="icon-btn" aria-label={addReaderLogLabel(work)} title={addReaderLogLabel(work)} onClick={onAddLog}>
+            <Icon name="plus" size={21} />
+          </button>
+          <button type="button" className="icon-btn" aria-label="この記録を編集" title="この記録を編集" onClick={onEdit}>
+            <Icon name="pencil" size={19} />
+          </button>
+        </>
       }
     >
       <section className="card log-reader-head">
@@ -63,10 +70,6 @@ export function LogDetail({ work, log, logs, today, onBack, onEdit, onAddLog, on
           <span className="field-label">感想・メモ</span>
           {log.note ? <p>{log.note}</p> : <p className="muted">感想・メモはありません。</p>}
         </div>
-      </section>
-      <section className="card log-reader-actions">
-        <button type="button" className="primary-btn" onClick={onAddLog}>{addReaderLogLabel(work)}</button>
-        <button type="button" className="secondary-btn" onClick={onOpenWork}>作品を開く</button>
       </section>
     </Screen>
   );

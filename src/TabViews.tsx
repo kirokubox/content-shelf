@@ -12,7 +12,7 @@ import { MEDIA } from "./types";
 import { WorkCard } from "./WorkCard";
 import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
 import { MonthSummaryView } from "./MonthSummaryView";
-import { continueGroup, hasNext, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
+import { continueGroup, hasNext, homeTsundoku, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
 import { upcomingByMedium } from "./expectLogic";
 import type { UpcomingItem } from "./expectLogic";
 import { countdownText, formatFuzzy, workExpect } from "./expectLogic";
@@ -127,8 +127,9 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
   const courMain = cour.filter((c) => unconsumedCount(c.work, handlers.today) !== 0);
   const courIds = useMemo(() => new Set(cour.map((c) => c.work.id)), [cour]);
   const upcoming = useMemo(() => upcomingByMedium(data.works, handlers.today), [data.works, handlers.today]);
-  // ホームに出す積読（詳細画面で1冊選ぶ）。もう積読でなくなっていたら出さない
-  const pick = data.works.find((w) => w.deletedAt === null && w.homePick && isTsundoku(w)) ?? null;
+  // ホームに出す積読：詳細画面で選んだ1冊。選んでいなければ積読の小説から日替わりで1冊（v0.22.0）
+  const pickInfo = useMemo(() => homeTsundoku(data.works, handlers.today), [data.works, handlers.today]);
+  const pick = pickInfo ? data.works.find((w) => w.id === pickInfo.id) ?? null : null;
   const waiting = useMemo(
     () => data.works
       .filter((w) => w.deletedAt === null && !courIds.has(w.id) && continueGroup(w, { today: handlers.today, latestVia: viaMap.get(w.id) ?? null }) === "current" && hasNext(w, handlers.today))
@@ -216,7 +217,7 @@ export function HomeView({ data, handlers, onAdd, onGoContinue, onGoCour, onGoRe
                   <CoverImg work={pick} className="cover-thumb record-cover" />
                   <span className="list-main">
                     <span className="list-name">{pick.title}</span>
-                    <span className="list-sub"><span className="medium-tag">{mediumTag(pick)}</span>積読から</span>
+                    <span className="list-sub"><span className="medium-tag">{mediumTag(pick)}</span>{pickInfo?.random ? "積読から（今日の1冊）" : "積読から"}</span>
                   </span>
                 </button>
               </li>

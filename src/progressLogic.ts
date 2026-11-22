@@ -300,3 +300,27 @@ export function addCurrentRerun(work: Work, today: string, now: string = nowIso(
 export function startAgain(work: Work, now: string = nowIso()): Work {
   return { ...work, status: "active", progress: null, rounds: Math.max(1, work.rounds) + 1, completedAt: null, touchedAt: now, updatedAt: now };
 }
+
+/** 文字列から決まる 0 以上の整数（日替わりの選び方に使う。同じ日なら同じ値） */
+function dayHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * ホームの「楽しみの予定」に出す積読（v0.22.0）。
+ * 詳細画面で選んだ1冊（homePick）があればそれ。無ければ、積読の小説から日替わりで1冊（2026-11-22 本人「ランダムでもいいかも」）。
+ * 開くたびに変わると落ち着かないので、同じ日は同じ本にする
+ */
+export function homeTsundoku(
+  works: readonly Pick<Work, "id" | "medium" | "status" | "purchase" | "homePick" | "deletedAt">[],
+  today: string,
+): { id: string; random: boolean } | null {
+  const alive = works.filter((w) => w.deletedAt === null && isTsundoku(w));
+  const picked = alive.find((w) => w.homePick);
+  if (picked) return { id: picked.id, random: false };
+  const novels = alive.filter((w) => w.medium === "novel").sort((a, b) => a.id.localeCompare(b.id));
+  if (novels.length === 0) return null;
+  return { id: novels[dayHash(today) % novels.length].id, random: true };
+}

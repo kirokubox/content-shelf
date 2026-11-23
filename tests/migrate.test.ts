@@ -77,7 +77,7 @@ test("視聴手段：場所の文字から決め、場所はそのまま残す",
   assert.equal(logOf("架空イベントJ")[0].place, "架空会場");
   assert.equal(logOf("架空小説G")[0].via, null);
   assert.equal(logOf("架空アニメK")[0].via, null);
-  assert.deepEqual(report.via, { broadcast: 3, rerun: 0, streaming: 15, disc: 1, recording: 0, venue: 2 });
+  assert.deepEqual(report.via, { broadcast: 3, rerun: 0, streaming: 15, disc: 1, recording: 0, venue: 2, weekly: 0, own_book: 0, manga_cafe: 0, rental: 0 });
   assert.equal(viaFromPlace("映画館", "movie"), "venue");
   assert.equal(viaFromPlace("家", "movie"), null);
   assert.equal(viaFromPlace("家", "live"), "venue");

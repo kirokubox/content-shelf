@@ -23,6 +23,8 @@ import type { TabId } from "./TabBar";
 import { ContinueView, CourView, HomeView, RecordsView, SummaryView } from "./TabViews";
 import { useToast } from "./Toast";
 import { discsOfLive, splitLiveDiscs } from "./liveDisc";
+import { convertMangaAccess } from "./mangaAccess";
+import { mergeMangaInfo, needsMangaInfo } from "./mangaInfo";
 import type { DataSet, Log, Medium, StoredPhoto, Work, WorkStatus } from "./types";
 import { WorkDetail } from "./WorkDetail";
 import { WorkEditor } from "./WorkEditor";
@@ -376,7 +378,10 @@ export default function App() {
               onReplace={async (d) => {
                 // 古いバックアップでLIVEに購入情報が付いていたら、映像作品へ移してから入れる（v0.20.0）
                 const s = splitLiveDiscs(d.works, nowIso());
-                const next = s.updated.length > 0 ? applyChanges(d, { works: [...s.created, ...s.updated] }) : d;
+                const split = s.updated.length > 0 ? applyChanges(d, { works: [...s.created, ...s.updated] }) : d;
+                // 古いバックアップのマンガの読む手段（紙・電子）も、今の選択肢にそろえる（v1.0.0）
+                const access = convertMangaAccess(split.works, nowIso());
+                const next = access.length > 0 ? applyChanges(split, { works: access }) : split;
                 await replaceAll(next);
                 setData(next);
               }}
@@ -387,6 +392,15 @@ export default function App() {
                 setData((cur) => applyChanges(cur, changes));
               }}
               showToast={showToast}
+              onFetchMangaInfo={async () => {
+                const targets = data.works.filter(needsMangaInfo);
+                if (targets.length === 0) return showToast("入れるものはありません");
+                const media = await fetchAnilistByIds(Array.from(new Set(targets.map((w) => w.externalIds.anilist!))));
+                const r = mergeMangaInfo(targets, data.people, media, nowIso());
+                if (r.works.length === 0) return showToast("AniListに作者・完結した日がありませんでした");
+                const ok = await commit({ works: r.works, people: r.created });
+                if (ok) showToast(`${r.works.length}作品に作者・完結した日を入れました（人物を${r.created.length}人追加）`);
+              }}
               onRefreshExternal={async () => {
                 const n = await refreshExternal(data.works, true);
                 showToast(n > 0 ? `${n}作品の情報を確かめました` : "AniListとつながった作品はありません");

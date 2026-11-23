@@ -55,7 +55,7 @@ test("放送枠：日本時間の深夜0〜4時台は前日の24〜28時にす�
 });
 
 test("AniList：放送枠は自動で入れた枠だけ上書きし、手で直した枠は変えない", () => {
-  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "RELEASING", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: 3, nextAiringAt: Date.UTC(2026, 10, 21, 16, 30) / 1000, season: "FALL", seasonYear: 2026, startDate: null };
+  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "RELEASING", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: 3, nextAiringAt: Date.UTC(2026, 10, 21, 16, 30) / 1000, season: "FALL", seasonYear: 2026, startDate: null, endDate: null, authors: [] };
   const base = { ...emptyWork("anime", NOW), title: "a" };
   assert.equal(formatAirSlot(applyAnilist(base, m, NOW).airSlot!), "土 25:30");
   const manual = { ...base, airSlot: { weekday: 3, minutes: 1380, source: "manual" as const } };

@@ -2,7 +2,7 @@
 // 取るのは「題名・表紙・全話数/全巻数・完結か・次に放送する話」だけ。自分の視聴位置は勝手に進めない。
 import { addCour } from "./courLogic.js";
 import { airSlotFromUnix } from "./airSlot.js";
-import type { Cour, Season, Work, WorkState } from "./types.js";
+import type { Cour, FuzzyDate, Season, Work, WorkState } from "./types.js";
 
 const ENDPOINT = "https://graphql.anilist.co";
 
@@ -26,6 +26,10 @@ export interface AnilistMedia {
   season: string | null;
   seasonYear: number | null;
   startDate: string | null;
+  /** 終わった日（連載・放送の終了。日・月だけ・年だけ。v1.0.0） */
+  endDate: FuzzyDate | null;
+  /** 作者（マンガの原作・作画。日本語の名前があればそれ。v1.0.0） */
+  authors: string[];
 }
 
 interface RawMedia {
@@ -41,9 +45,11 @@ interface RawMedia {
   season?: unknown;
   seasonYear?: unknown;
   startDate?: { year?: unknown; month?: unknown; day?: unknown };
+  endDate?: { year?: unknown; month?: unknown; day?: unknown };
+  staff?: { edges?: Array<{ role?: unknown; node?: { name?: { native?: unknown; full?: unknown } } }> };
 }
 
-const FIELDS = "id type title { native romaji } status(version: 2) format episodes volumes coverImage { large medium } nextAiringEpisode { episode airingAt } season seasonYear startDate { year month day }";
+const FIELDS = "id type title { native romaji } status(version: 2) format episodes volumes coverImage { large medium } nextAiringEpisode { episode airingAt } season seasonYear startDate { year month day } endDate { year month day } staff(perPage: 6, sort: RELEVANCE) { edges { role node { name { native full } } } }";
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v !== "" ? v : null;
@@ -77,7 +83,34 @@ export function mapMedia(m: RawMedia): AnilistMedia | null {
     season: str(m.season),
     seasonYear: posInt(m.seasonYear),
     startDate,
+    endDate: fuzzyOf(m.endDate),
+    authors: authorsOf(m.staff),
   };
+}
+
+/** AniList の日付（年だけ・年月だけもある）を、日付と細かさにする */
+export function fuzzyOf(d: RawMedia["endDate"]): FuzzyDate | null {
+  const y = posInt(d?.year);
+  if (!y) return null;
+  const m = posInt(d?.month);
+  const day = posInt(d?.day);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (m && day) return { date: `${y}-${pad(m)}-${pad(day)}`, precision: "day" };
+  if (m) return { date: `${y}-${pad(m)}-01`, precision: "month" };
+  return { date: `${y}-01-01`, precision: "year" };
+}
+
+/** 作者：役割が原作・作画（Story・Art・Original Creator）の人。日本語の名前を優先し、重ねない（最大2人） */
+export function authorsOf(staff: RawMedia["staff"]): string[] {
+  const out: string[] = [];
+  for (const e of staff?.edges ?? []) {
+    const role = str(e.role) ?? "";
+    if (!/Story|Art|Original Creator/i.test(role)) continue;
+    const name = str(e.node?.name?.native) ?? str(e.node?.name?.full);
+    if (name && !out.includes(name)) out.push(name);
+    if (out.length >= 2) break;
+  }
+  return out;
 }
 
 async function query(body: { query: string; variables: Record<string, unknown> }, signal?: AbortSignal): Promise<RawMedia[]> {

@@ -104,7 +104,7 @@ test("積読・○周目・もう一度見ると周回数が増える", () => {
 });
 
 test("AniList：時期は本放送のクール、始まる前は「始まる前」。すでに本放送のクールがあれば足さない", () => {
-  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "NOT_YET_RELEASED", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: null, nextAiringAt: null, season: "FALL", seasonYear: 2026, startDate: null };
+  const m: AnilistMedia = { id: 1, type: "ANIME", title: "架空", romaji: "", status: "NOT_YET_RELEASED", format: "TV", episodes: 12, volumes: null, cover: null, nextEpisode: null, nextAiringAt: null, season: "FALL", seasonYear: 2026, startDate: null, endDate: null, authors: [] };
   assert.deepEqual(courOf(m), FALL);
   assert.equal(courOf({ ...m, type: "MANGA" }), null);
   const w = applyAnilist({ ...emptyWork("anime", NOW), title: "a" }, m, NOW);
@@ -125,7 +125,7 @@ test("表示名は名詞：状態・購入・視聴手段", () => {
   assert.deepEqual(workStateChoices("live").map((s) => workStateWord("live", s)), ["開催前", "開催済", "不明"]);
   // v0.17.0 で購入の段階の名前を 持ってない／買う予定／予約済み／持ってる に変えた
   assert.deepEqual(Object.values(PURCHASE_STAGE_LABEL), ["持ってない", "買う予定", "予約済み", "持ってる"]);
-  assert.deepEqual(Object.values(LOG_VIA_LABEL), ["放送", "再放送", "配信", "円盤", "録画", "劇場・会場"]);
+  assert.deepEqual(Object.values(LOG_VIA_LABEL), ["放送", "再放送", "配信", "円盤", "録画", "劇場・会場", "週刊誌", "所持", "漫喫", "レンタル"]);
   assert.equal(statusWord("manga", "wish"), "読書予定");
 });
 

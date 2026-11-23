@@ -1,17 +1,16 @@
 import { useRef, useState } from "react";
 import { BottomSheet } from "./BottomSheet";
-import { LOG_VIA_LABEL, doneWord, hasVia } from "./constants";
+import { LOG_VIA_LABEL, doneWord, hasVia, viaChoicesOf, viaFieldLabel } from "./constants";
 import { defaultVia } from "./courLogic";
 import { viaFromPlace } from "./migrate";
 import { dateKeyFromInput, inputFromDateKey, nowIso } from "./dateUtils";
-import { DateField, PlaceField, hasPlace } from "./formParts";
+import { DateField, PlaceField, SegRow, hasPlace } from "./formParts";
 import type { PrecisionChoice } from "./formParts";
 import { progressKindOf } from "./progressLogic";
 import { preparePhoto } from "./photos";
 import { LogPhotos } from "./LogPhotos";
 import { Stars } from "./Screen";
 import type { DatePrecision, Log, LogVia, StoredPhoto, Work } from "./types";
-import { LOG_VIAS } from "./types";
 import { newLog } from "./workFactory";
 
 interface Props {
@@ -107,12 +106,16 @@ export function LogSheet({ work, logs, log, today, newKind, onClose, onSave, onD
           ) : <span />}
         </div>
         {!isProgress && work.medium === "movie" && <PlaceField medium="movie" value={place} onChange={onPlace} />}
-        {hasVia(work.medium) && (
+        {hasVia(work.medium) && work.medium === "manga" && (
+          // マンガは4つなので横並びで選ぶ（v1.0.0）。選んだものをもう一度押すと外す
+          <SegRow label={viaFieldLabel(work.medium)} value={via} choices={viaChoicesOf(work.medium).map((v) => ({ value: v as LogVia | null, label: LOG_VIA_LABEL[v] }))} onChange={setVia} clearValue={null} />
+        )}
+        {hasVia(work.medium) && work.medium !== "manga" && (
           <label className="field">
-            <span className="field-label">視聴手段</span>
+            <span className="field-label">{viaFieldLabel(work.medium)}</span>
             <select className="text-input" value={via ?? ""} onChange={(e) => setVia((e.target.value || null) as LogVia | null)}>
               <option value="">指定しない</option>
-              {LOG_VIAS.map((v) => <option key={v} value={v}>{LOG_VIA_LABEL[v]}</option>)}
+              {viaChoicesOf(work.medium).map((v) => <option key={v} value={v}>{LOG_VIA_LABEL[v]}</option>)}
             </select>
           </label>
         )}

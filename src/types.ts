@@ -42,8 +42,9 @@ export interface Purchase {
  * 読む・見る手段（購入とは別）。paper＝紙、digital＝電子（accessStore で Kindle・ジャンプ＋・その他）、manga_cafe＝漫喫、streaming＝配信で見る。
  * v0.16の jump_plus は digital＋jump_plus へ移した（v0.17.0）
  */
-export type Access = "paper" | "digital" | "manga_cafe" | "streaming" | null;
-export const ACCESSES = ["paper", "digital", "manga_cafe", "streaming"] as const;
+export type Access = "paper" | "digital" | "manga_cafe" | "streaming" | "weekly" | "rental" | null;
+/** weekly＝週刊誌で読む、rental＝レンタル（v1.0.0）。マンガの読む手段は「週刊誌／漫喫／レンタル」だけを選べる（所持で読むときは空。紙・電子は購入の欄で分かる）。paper・digital は古いデータの読み込みのために残す */
+export const ACCESSES = ["paper", "digital", "manga_cafe", "streaming", "weekly", "rental"] as const;
 /** 日付と細かさ（楽しみの日。記録の日付と同じ考え方で、日・月だけ・年だけ） */
 export interface FuzzyDate {
   /** YYYY-MM-DD（月だけは YYYY-MM-01、年だけは YYYY-01-01） */
@@ -56,8 +57,12 @@ export interface VolumeDate {
   date: FuzzyDate;
 }
 /** 記録ごとの視聴手段 */
-export type LogVia = "broadcast" | "rerun" | "streaming" | "disc" | "recording" | "venue";
-export const LOG_VIAS = ["broadcast", "rerun", "streaming", "disc", "recording", "venue"] as const;
+export type LogVia = "broadcast" | "rerun" | "streaming" | "disc" | "recording" | "venue" | "weekly" | "own_book" | "manga_cafe" | "rental";
+/** weekly〜rental はマンガの記録の読む手段（v1.0.0。週刊誌／所持／漫喫／レンタル） */
+export const LOG_VIAS = ["broadcast", "rerun", "streaming", "disc", "recording", "venue", "weekly", "own_book", "manga_cafe", "rental"] as const;
+/** 種類ごとの記録の手段の選択肢 */
+export const MANGA_LOG_VIAS = ["weekly", "own_book", "manga_cafe", "rental"] as const;
+export const WATCH_LOG_VIAS = ["broadcast", "rerun", "streaming", "disc", "recording", "venue"] as const;
 /** イベントの区分（v0.9.0）。null＝未設定（LIVEと同じに扱う） */
 export type EventKind = "live" | "fes" | "food" | "exhibit" | "other" | null;
 
@@ -181,6 +186,8 @@ export interface Work extends Base {
   airSlot: AirSlot | null;
   /** 映像作品：もとになったLIVE（複数可。イベントの作品の id。v0.20.0） */
   relatedLiveIds: string[];
+  /** マンガ：完結した日（AniList の連載終了日。並び順「完結・発売日」に使う。v1.0.0。古いデータには無い） */
+  endDate?: FuzzyDate | null;
 }
 
 /**

@@ -1,7 +1,8 @@
 import type { Access, DigitalStore, EventKind, LogVia, Medium, ProgressKind, PurchaseFormat, PurchaseStage, RangeMedium, Work, WorkState, WorkStatus } from "./types.js";
+import { MANGA_LOG_VIAS, WATCH_LOG_VIAS } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "0.24.0";
+export const APP_VERSION = "1.0.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 4;
@@ -158,7 +159,7 @@ export const PLATFORMS = ["Switch", "スマホ", "PS5", "PS4", "PC", "3DS", "DS"
 /** 購入の段階の名前（v0.17.0 で 未所持／購入予定／予約済／所持 から変えた） */
 export const PURCHASE_STAGE_LABEL: Record<PurchaseStage, string> = { none: "持ってない", planned: "買う予定", reserved: "予約済み", owned: "持ってる" };
 /** 読む・見る手段の名前 */
-export const ACCESS_LABEL: Record<Exclude<Access, null>, string> = { paper: "紙", digital: "電子", manga_cafe: "漫喫", streaming: "配信" };
+export const ACCESS_LABEL: Record<Exclude<Access, null>, string> = { paper: "紙", digital: "電子", manga_cafe: "漫喫", streaming: "配信", weekly: "週刊誌", rental: "レンタル" };
 /** 電子のときの2段目の名前 */
 export const DIGITAL_STORE_LABEL: Record<DigitalStore, string> = { kindle: "Kindle", jump_plus: "ジャンプ＋", other: "その他" };
 
@@ -231,9 +232,23 @@ export const LOG_VIA_LABEL: Record<LogVia, string> = {
   disc: "円盤",
   recording: "録画",
   venue: "劇場・会場",
+  weekly: "週刊誌",
+  own_book: "所持",
+  manga_cafe: "漫喫",
+  rental: "レンタル",
 };
 
-/** 記録に視聴手段を出す種類（マンガ・小説・週刊誌・ゲームは出さない） */
+/** 記録に視聴手段（マンガは読む手段）を出す種類（小説・週刊誌・ゲームは出さない。マンガは v1.0.0 から） */
 export function hasVia(medium: Medium): boolean {
-  return medium === "anime" || medium === "drama" || medium === "movie" || medium === "video" || medium === "live";
+  return medium === "anime" || medium === "drama" || medium === "movie" || medium === "video" || medium === "live" || medium === "manga";
+}
+
+/** 記録の手段の選択肢（マンガは読む手段、ほかは視聴手段） */
+export function viaChoicesOf(medium: Medium): readonly LogVia[] {
+  return medium === "manga" ? MANGA_LOG_VIAS : WATCH_LOG_VIAS;
+}
+
+/** 記録の手段の見出し */
+export function viaFieldLabel(medium: Medium): string {
+  return medium === "manga" ? "読む手段" : "視聴手段";
 }

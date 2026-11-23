@@ -243,7 +243,8 @@ export function continueGroup(work: Work, ctx: ContinueContext = { today: "9999-
   if (work.status === "wish") return "planned";
   if (work.status === "paused") return "partway";
   if (work.medium === "game" || work.medium === "magazine") return "current";
-  if (work.medium === "manga") return work.buying && work.workState !== "finished" ? "current" : "partway";
+  // 週刊誌で追っているマンガ（完結前）も「現在」（v1.0.0。本人「週刊誌で読んでる作品も完結する前から登録しとこうかな」）
+  if (work.medium === "manga") return (work.buying || work.access === "weekly") && work.workState !== "finished" ? "current" : "partway";
   if (progressKindOf(work) === "episode") {
     if (work.schedule && work.workState !== "finished") return "current";
     const period = courPeriodOf(ctx.today);
@@ -323,4 +324,23 @@ export function homeTsundoku(
   const novels = alive.filter((w) => w.medium === "novel").sort((a, b) => a.id.localeCompare(b.id));
   if (novels.length === 0) return null;
   return { id: novels[dayHash(today) % novels.length].id, random: true };
+}
+
+/**
+ * 完結したマンガの持っている巻（v1.0.0。本人「完結作品で完結まで単行本持ってる持ってないが分かりにくい」）。
+ * 一覧の行と詳細に文字で出す。完結していない・マンガ以外は空
+ */
+export function ownedVolumesText(work: Pick<Work, "medium" | "workState" | "owned" | "purchase" | "total" | "latestKnown">): string {
+  if (work.medium !== "manga" || work.workState !== "finished") return "";
+  const vols = new Set<number>();
+  for (const r of work.owned?.ranges ?? []) for (let v = r.from; v <= r.to && v - r.from < 1000; v++) vols.add(v);
+  const total = work.total ?? work.latestKnown;
+  if (vols.size === 0) return work.purchase.stage === "owned" ? "持ってる（巻は不明）" : "持ってない";
+  if (total !== null && total > 0) return vols.size >= total ? "全巻持ってる" : `${vols.size}/${total}巻持ってる`;
+  return `${vols.size}巻持ってる`;
+}
+
+/** 週刊誌で連載を追っているマンガ（巻を数えない。「＋1巻」を出さず、読み終えたら記録を書く。v1.0.0） */
+export function isWeeklyManga(work: Pick<Work, "medium" | "access" | "status">): boolean {
+  return work.medium === "manga" && work.access === "weekly" && work.status !== "done";
 }

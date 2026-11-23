@@ -176,8 +176,8 @@ const CLEAR_CHOICES: { value: ClearLevel; label: string }[] = [
 const STAGE_CHOICES: { value: PurchaseStage; label: string }[] = PURCHASE_STAGES.map((st) => ({ value: st, label: PURCHASE_STAGE_LABEL[st] }));
 /** 読む・見る手段を持てる種類と、その選択肢 */
 function accessChoices(medium: Medium): { value: Access; label: string }[] | null {
-  // マンガは紙／電子（2段目：Kindle・ジャンプ＋・その他）／漫喫。漫喫は購入ではないので、購入の段階には影響しない
-  if (medium === "manga") return [{ value: null, label: "なし" }, { value: "paper", label: ACCESS_LABEL.paper }, { value: "digital", label: ACCESS_LABEL.digital }, { value: "manga_cafe", label: ACCESS_LABEL.manga_cafe }];
+  // マンガは「所持」（空）／週刊誌／漫喫／レンタル（v1.0.0）。紙・電子は購入の欄で分かるので、読む手段には出さない
+  if (medium === "manga") return [{ value: null, label: "所持" }, { value: "weekly", label: ACCESS_LABEL.weekly }, { value: "manga_cafe", label: ACCESS_LABEL.manga_cafe }, { value: "rental", label: ACCESS_LABEL.rental }];
   if (medium === "anime" || medium === "drama" || medium === "movie" || medium === "video") return [{ value: null, label: "なし" }, { value: "streaming", label: ACCESS_LABEL.streaming }];
   return null;
 }

@@ -56,9 +56,11 @@ interface Props {
   onAdd: (changes: DataSet) => Promise<void>;
   showToast: (text: string) => void;
   onRefreshExternal: () => Promise<void>;
+  /** マンガの作者と完結した日を AniList から入れる（v1.0.0） */
+  onFetchMangaInfo: () => Promise<void>;
 }
 
-export function SettingsView({ data, today, persisted, enabledMedia, onToggleMedium, onBack, onReplace, onAdd, showToast, onRefreshExternal }: Props) {
+export function SettingsView({ data, today, persisted, enabledMedia, onToggleMedium, onBack, onReplace, onAdd, showToast, onRefreshExternal, onFetchMangaInfo }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"restore" | "merge" | "manga" | "update">("merge");
   const [pending, setPending] = useState<Pending | null>(null);
@@ -299,7 +301,25 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
           >
             <span className="setting-label">いま確かめる</span>
           </button>
+          <button
+            type="button"
+            className="setting-row"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onFetchMangaInfo();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "取ってこられませんでした");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <span className="setting-label">マンガの作者と完結した日を入れる</span>
+          </button>
         </div>
+        <p className="muted small">作者が空のマンガと、完結しているのに完結した日が無いマンガだけ、AniListから入れます（並び順「作者」「完結・発売日」に使います）。入っている作者・日付は変えません。</p>
       </section>
       <section className="card">
         <h2>ほかのアプリから</h2>

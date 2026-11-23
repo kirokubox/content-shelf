@@ -2,6 +2,7 @@
 import { DB_NAME, DB_VERSION, MIGRATION_STORE, PHOTO_STORE, STORES } from "./constants.js";
 import { applyChanges, normalizeData } from "./dataOps.js";
 import { splitLiveDiscs } from "./liveDisc.js";
+import { convertMangaAccess } from "./mangaAccess.js";
 import { hasLegacyWorks, hasV2Works, migrateV1ToV2, migrateV2ToV3 } from "./migrate.js";
 import type { MigrationReport, MigrationV3Report } from "./migrate.js";
 import type { DataSet, Franchise, Log, Person, StoredPhoto, Work } from "./types.js";
@@ -64,7 +65,7 @@ function getAll<S extends StoreName>(db: IDBDatabase, name: S): Promise<RecordOf
 /** 移し替え前のデータ（丸ごと）。1回だけ保存して、あとで書き出せる */
 export interface MigrationBackupRecord {
   /** v1-before＝版1→版2の前（v0.16.0）、v2-before＝版2→版3の前（v0.17.0） */
-  id: "v1-before" | "v2-before" | "live-disc-before";
+  id: "v1-before" | "v2-before" | "live-disc-before" | "manga-access-before";
   savedAt: string;
   data: { franchises: unknown[]; works: unknown[]; logs: unknown[]; people: unknown[] };
 }
@@ -161,7 +162,24 @@ export async function loadAll(): Promise<DataSet> {
   await migrateV3IfNeeded(db);
   const [franchises, works, logs, people] = await Promise.all([getAll(db, "franchises"), getAll(db, "works"), getAll(db, "logs"), getAll(db, "people")]);
   const data = normalizeData({ franchises, works, logs, people });
-  return splitLiveDiscsIfNeeded(db, data, { franchises, works, logs, people });
+  const split = await splitLiveDiscsIfNeeded(db, data, { franchises, works, logs, people });
+  return convertMangaAccessIfNeeded(db, split);
+}
+
+/**
+ * マンガの読む手段を「週刊誌／漫喫／レンタル」にそろえる（v1.0.0）。変える作品があるときだけ、
+ * 変える前の作品を migrations の manga-access-before に1回だけ保存する
+ */
+async function convertMangaAccessIfNeeded(db: IDBDatabase, data: DataSet): Promise<DataSet> {
+  const updated = convertMangaAccess(data.works, new Date().toISOString());
+  if (updated.length === 0) return data;
+  const ids = new Set(updated.map((w) => w.id));
+  const hasBackup = (await getOne<MigrationBackupRecord>(db, MIGRATION_STORE, "manga-access-before")) !== undefined;
+  const tx = db.transaction(["works", MIGRATION_STORE], "readwrite");
+  if (!hasBackup) tx.objectStore(MIGRATION_STORE).put({ id: "manga-access-before", savedAt: new Date().toISOString(), data: { franchises: [], works: data.works.filter((w) => ids.has(w.id)), logs: [], people: [] } } satisfies MigrationBackupRecord);
+  for (const w of updated) tx.objectStore("works").put(w);
+  await done(tx);
+  return applyChanges(data, { works: updated });
 }
 
 /**

@@ -5,7 +5,7 @@ import { canAddCurrentRerun, formatCour, subLabel, viaPlaceText } from "./courLo
 import { formatDate, formatDateShort, formatLogDate, isoToDateKey, weekdayOf } from "./dateUtils";
 import { Icon } from "./Icon";
 import { LogPhotos } from "./LogPhotos";
-import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
+import { availableCount, isTsundoku, isWaitingForNewVolume, latestLabel, isWeeklyManga, ownedGapSummary, ownedVolumesText, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
 import { formatFuzzy, workExpect } from "./expectLogic";
 import { unboughtVolumes, volumesText } from "./purchaseLogic";
 import { MoreMenu, Screen, Stars } from "./Screen";
@@ -82,6 +82,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
   const unconsumed = unconsumedCount(work, today);
   // 読書中・中断の小説：記録を書くと読了になる入口を主ボタンにする
   const readingNovel = work.medium === "novel" && (work.status === "active" || work.status === "paused");
+  // 週刊誌で追っているマンガ：巻は数えず、読み終えたら記録を書いて読了（v1.0.0）
+  const weekly = isWeeklyManga(work);
   // 記録の並び（v0.19.0）：新しい順・古い順を切り替えられる（端末に記憶）
   const [logSort, setLogSort] = useSortPref("work-logs");
   const newestFirst = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
@@ -134,6 +136,8 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
     isTsundoku(work) ? (work.homePick ? "積読（ホームに出す）" : "積読") : "",
     work.rounds >= 2 ? roundsLabel(work) : "",
     work.isOriginal ? "原作" : "",
+    // 完結したマンガは持っている巻を上のカードにも（v1.0.0）
+    ownedVolumesText(work),
   ].filter(Boolean);
   return (
     <Screen
@@ -199,7 +203,11 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
 
         {/* 操作（v0.21.0）：主な操作を1つだけ横いっぱいに。ほかは2つまで横に並べ、まれな操作は右上の「…」へ */}
         <div className="detail-actions">
-          {kind !== "none" && work.status !== "done" ? (
+          {weekly ? (
+            <button type="button" className="primary-btn wide-btn" onClick={() => onAddLog("view", true)}>
+              読み終えた（記録を書く）
+            </button>
+          ) : kind !== "none" && work.status !== "done" ? (
             <button type="button" className="primary-btn wide-btn" onClick={() => onStep(work)}>
               <Icon name="plus" size={18} /> 次の{unit}を記録
             </button>
@@ -214,7 +222,7 @@ export function WorkDetail({ work, logs, franchise, people, onOpenFranchise, onO
           ) : null}
           {kind !== "none" && (
             <div className="sub-actions">
-              {work.status !== "done" && (
+              {work.status !== "done" && !weekly && (
                 <button type="button" className="secondary-btn" onClick={() => onAddLog("progress")}>
                   日付を選んで記録
                 </button>

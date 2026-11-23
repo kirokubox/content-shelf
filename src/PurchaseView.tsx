@@ -10,7 +10,7 @@ import { visibleFilterMedia } from "./mediaPrefs";
 import { defaultShape, purchaseList, unboughtVolumes, volumeList, volumesText } from "./purchaseLogic";
 import { SortControl, useSortPref } from "./SortControl";
 import { ScrollHideBar } from "./ScrollHideBar";
-import { sortItems } from "./sortLogic";
+import { authorKeyOf, effectivePref, releasedOf, sortItems } from "./sortLogic";
 import type { SortScope } from "./sortLogic";
 import type { PurchaseItem, PurchaseTab, Shape } from "./purchaseLogic";
 import type { DataSet, DigitalStore, Medium, RangeMedium, Work } from "./types";
@@ -96,13 +96,19 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
   const [medium, setMedium] = useState<Medium | null>(null);
   // 並び順（v0.19.0）：タブごとに記憶。「発売日を過ぎても予約済み」の枠は崩さず、枠の中だけ並べ替える
   const sortScope: SortScope = tab === "planned" ? "purchase-planned" : tab === "reserved" ? "purchase-reserved" : "purchase-owned";
-  const [sortPref, setSortPref] = useSortPref(sortScope);
-  const all = useMemo(
-    () => sortItems(purchaseList(data.works, tab, today), sortPref, { work: (i) => i.work, expect: (i) => i.date }),
-    [data.works, tab, today, sortPref],
-  );
-  const media = visibleFilterMedia(MEDIA.filter((m) => all.some((i) => i.work.medium === m)), enabledMedia);
+  const [storedSortPref, setSortPref] = useSortPref(sortScope);
+  const list = useMemo(() => purchaseList(data.works, tab, today), [data.works, tab, today]);
+  const media = visibleFilterMedia(MEDIA.filter((m) => list.some((i) => i.work.medium === m)), enabledMedia);
   const selected = medium !== null && media.includes(medium) ? medium : null;
+  // 作者・完結/発売日は、小説・マンガ・映像作品に絞ったときだけ（v1.0.0）
+  const listMedia = MEDIA.filter((m) => list.some((i) => i.work.medium === m));
+  const sortMedium = selected ?? (listMedia.length === 1 ? listMedia[0] : null);
+  const sortPref = effectivePref(sortScope, storedSortPref, sortMedium);
+  const peopleById = useMemo(() => new Map(data.people.map((p) => [p.id, p])), [data.people]);
+  const all = useMemo(
+    () => sortItems(list, sortPref, { work: (i) => i.work, expect: (i) => i.date, author: (i) => authorKeyOf(i.work, peopleById), released: (i) => releasedOf(i.work) }),
+    [list, sortPref, peopleById],
+  );
   const shown = all.filter((i) => selected === null || i.work.medium === selected);
   const overdue = shown.filter((i) => i.overdue);
   const rest = shown.filter((i) => !i.overdue);
@@ -131,7 +137,7 @@ export function PurchaseView({ data, today, handlers, enabledMedia }: { data: Da
         <>
           <div className="records-tools">
             <p className="muted small count-line">{shown.length}件</p>
-            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} />
+            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} medium={sortMedium} />
           </div>
           {overdue.length > 0 && (
             <section className="card list-card overdue-card">

@@ -13,14 +13,14 @@ import { WorkCard } from "./WorkCard";
 import { visibleFilterMedia, visibleMedia } from "./mediaPrefs";
 import { MonthSummaryView } from "./MonthSummaryView";
 import { YearSummaryView } from "./YearSummaryView";
-import { continueGroup, hasNext, homeTsundoku, isTsundoku, ownedGapSummary, unconsumedCount } from "./progressLogic";
+import { continueGroup, hasNext, homeTsundoku, isTsundoku, isWeeklyManga, ownedGapSummary, unconsumedCount } from "./progressLogic";
 import { upcomingByMedium } from "./expectLogic";
 import type { UpcomingItem } from "./expectLogic";
 import { countdownText, formatFuzzy, workExpect } from "./expectLogic";
 import { SortControl, useSortPref } from "./SortControl";
 import { ScrollHideBar } from "./ScrollHideBar";
 import { ChoiceSheet } from "./BottomSheet";
-import { defaultSortPref, lastLoggedMap, sortItems, sortWorks } from "./sortLogic";
+import { defaultSortPref, effectivePref, lastLoggedMap, sortItems, sortWorks } from "./sortLogic";
 
 interface CardHandlers {
   today: string;
@@ -292,16 +292,21 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
   const shown = inTab.filter((w) => (selectedMedium === null || w.medium === selectedMedium) && (!cafeOnly || !hasCafe || w.access === "manga_cafe"));
   // 並び順（v0.19.0）：タブごとに記憶。枠（追いついている・やめたもの・積読を先に）は崩さず、枠の中だけ並べ替える
   const sortScope = tab === "current" ? "continue-current" : tab === "partway" ? "continue-partway" : "continue-planned";
-  const [sortPref, setSortPref] = useSortPref(sortScope);
+  const [storedSortPref, setSortPref] = useSortPref(sortScope);
+  // 種類で絞っていなくても、一覧が1種類だけならその種類として扱う（作者・完結/発売日を出すか）
+  const sortMedium = selectedMedium ?? (availableMedia.length === 1 ? availableMedia[0] : null);
+  const sortPref = effectivePref(sortScope, storedSortPref, sortMedium);
   const lastLogged = useMemo(() => lastLoggedMap(data.logs), [data.logs]);
-  const sorted = sortWorks(shown, sortPref, { lastLogged, expectOf: workExpect });
+  const peopleById = useMemo(() => new Map(data.people.map((p) => [p.id, p])), [data.people]);
+  const sorted = sortWorks(shown, sortPref, { lastLogged, expectOf: workExpect, peopleById });
   let main: Work[];
   let caughtUp: Work[] = [];
   let stopped: Work[] = [];
   if (tab === "current") {
     // 見る・読むものがある（未消化がある）ものを上に。追いついたものはたたむ
-    main = sorted.filter((w) => hasNext(w, handlers.today));
-    caughtUp = sorted.filter((w) => !hasNext(w, handlers.today));
+    // 週刊誌で追っているマンガは巻を数えないので、たたまずに上へ（v1.0.0）
+    main = sorted.filter((w) => hasNext(w, handlers.today) || isWeeklyManga(w));
+    caughtUp = sorted.filter((w) => !hasNext(w, handlers.today) && !isWeeklyManga(w));
   } else if (tab === "partway") {
     // 既定は題名（読み仮名）順（漫画喫茶で探しやすいよう）。中断は一番下に「やめたもの」としてたたむ
     main = sorted.filter((w) => w.status !== "paused");
@@ -336,7 +341,7 @@ export function ContinueView({ data, handlers, onAdd, enabledMedia }: { data: Da
         <>
           <div className="records-tools">
             <p className="muted small count-line">{total}作品</p>
-            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} />
+            <SortControl scope={sortScope} value={sortPref} onChange={setSortPref} medium={sortMedium} />
           </div>
           {main.length > 0 && (
             <section className="card list-card">

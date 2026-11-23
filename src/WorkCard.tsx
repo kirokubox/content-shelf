@@ -1,12 +1,12 @@
 import { useRef } from "react";
 import { subLabel } from "./courLogic";
 import { CoverImg } from "./CoverImg";
-import { LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
+import { ACCESS_LABEL, LONG_PRESS_MS, UNIT_LABEL, mediumTag } from "./constants";
 import { expectVerb, formatFuzzy, workExpect } from "./expectLogic";
 import { formatDateShort, isoToDateKey } from "./dateUtils";
 import { Icon } from "./Icon";
 import { formatAirSlot } from "./airSlot";
-import { isTsundoku, isWaitingForNewVolume, latestLabel, ownedGapSummary, positionLabel, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
+import { isTsundoku, isWaitingForNewVolume, isWeeklyManga, latestLabel, ownedGapSummary, ownedVolumesText, positionLabel, progressKindOf, roundsLabel, unconsumedCount } from "./progressLogic";
 import type { Work } from "./types";
 
 /** 押して離したら onTap、長押しなら onLong（＋1の長押しで日付を選ぶ） */
@@ -49,11 +49,12 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
   const kind = progressKindOf(work);
   const unconsumed = unconsumedCount(work, today);
   const press = useLongPress(() => onStep(work), () => onStepWithDate(work));
-  const position = kind === "issue" && work.readThrough ? `${formatDateShort(work.readThrough)}発売の号まで` : positionLabel(work);
+  const weekly = isWeeklyManga(work);
+  const position = weekly ? (work.workState === "finished" ? "週刊誌で完結まで" : "週刊誌で追っている") : kind === "issue" && work.readThrough ? `${formatDateShort(work.readThrough)}発売の号まで` : positionLabel(work);
   const latest = latestLabel(work, today);
   // 楽しみの日（開催・公開・発売・放送開始）。済の作品には出さない
   const expect = work.status !== "done" ? workExpect(work) : null;
-  const showLeft = work.status === "active" && unconsumed !== null && unconsumed > 0;
+  const showLeft = !weekly && work.status === "active" && unconsumed !== null && unconsumed > 0;
   // その作品だけの目印。強調はせず、日付と同じ行に並べる
   const notes = [
     work.airSlot && (work.medium === "anime" || work.medium === "drama") && work.status !== "done" ? formatAirSlot(work.airSlot) : "",
@@ -61,7 +62,9 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
     isTsundoku(work) ? "積読" : "",
     rerun ? "再放送" : "",
     work.rounds >= 2 ? roundsLabel(work) : "",
-    work.access === "manga_cafe" ? "漫喫" : "",
+    work.medium === "manga" && (work.access === "manga_cafe" || work.access === "rental") ? ACCESS_LABEL[work.access] : "",
+    // 完結したマンガは持っている巻を文字で（v1.0.0）
+    ownedVolumesText(work),
   ].filter(Boolean);
   return (
     <li className="work-card">
@@ -92,13 +95,14 @@ export function WorkCard({ work, today, onOpen, onStep, onStepWithDate, onFinish
             </span>
           </span>
         </button>
-        {work.medium === "novel" && work.status === "active" && onFinish && (
+        {/* 週刊誌のマンガは、連載が完結してから一覧に「読み終えた」を出す（それまでは詳細から） */}
+        {(work.medium === "novel" || (weekly && work.workState === "finished")) && work.status === "active" && onFinish && (
           <button type="button" className="buy-btn" aria-label={`${work.title}を読み終えた（記録を書く）`} onClick={() => onFinish(work)}>
             読み終えた
           </button>
         )}
       </div>
-      {kind !== "none" && work.status === "active" && (
+      {kind !== "none" && !weekly && work.status === "active" && (
         <button type="button" className="step-btn" aria-label={`次の${UNIT_LABEL[kind]}を記録（長押しで日付を選ぶ）`} {...press}>
           <Icon name="plus" size={16} />
           <span>1{UNIT_LABEL[kind]}</span>

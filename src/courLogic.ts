@@ -97,7 +97,7 @@ export function latestViaMap(logs: readonly Log[]): Map<string, LogVia | null> {
 }
 
 /** 記録の視聴手段の既定値：前回の記録の手段 → 種類ごとの既定 */
-export function defaultVia(work: Pick<Work, "id" | "medium" | "cours">, logs: readonly Log[], today: string): LogVia | null {
+export function defaultVia(work: Pick<Work, "id" | "medium" | "cours"> & Partial<Pick<Work, "access" | "purchase">>, logs: readonly Log[], today: string): LogVia | null {
   let prev: Log | null = null;
   for (const l of logs) {
     if (l.deletedAt !== null || l.workId !== work.id || !l.via) continue;
@@ -110,7 +110,16 @@ export function defaultVia(work: Pick<Work, "id" | "medium" | "cours">, logs: re
   }
   if (work.medium === "movie" || work.medium === "live") return "venue";
   if (work.medium === "video") return "disc";
+  if (work.medium === "manga") return mangaViaFromWork(work);
   return null;
+}
+
+/** マンガの記録の読む手段の既定：作品の読む手段 → 持っていれば「所持」（v1.0.0） */
+export function mangaViaFromWork(work: Partial<Pick<Work, "access" | "purchase">>): LogVia | null {
+  if (work.access === "weekly") return "weekly";
+  if (work.access === "manga_cafe") return "manga_cafe";
+  if (work.access === "rental") return "rental";
+  return work.purchase?.stage === "owned" ? "own_book" : null;
 }
 
 export interface CourWork {

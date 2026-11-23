@@ -31,6 +31,8 @@
     "src/anilist.ts",
     "src/photoBackup.ts",
     "src/zip.ts",
+    "src/mangaAccess.ts",
+    "src/mangaInfo.ts",
     "tests/*.ts"
   ]
 }

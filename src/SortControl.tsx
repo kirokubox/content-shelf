@@ -2,7 +2,8 @@
 import { useCallback, useState } from "react";
 import { ChoiceSheet } from "./BottomSheet";
 import { Icon } from "./Icon";
-import { SORT_LABEL, SORT_OPTIONS, choosePref, dirLabel, flipPref, hasDirection, parseSortPref } from "./sortLogic";
+import { SORT_LABEL, choosePref, dirLabel, flipPref, hasDirection, parseSortPref, sortOptionsFor } from "./sortLogic";
+import type { Medium } from "./types";
 import type { SortKey, SortPref, SortScope } from "./sortLogic";
 
 const storageKey = (scope: SortScope) => `content-shelf:sort:${scope}`;
@@ -36,8 +37,8 @@ export function useSortPref(scope: SortScope): [SortPref, (pref: SortPref) => vo
 
 /** 並び順の選択と向きの切り替え。選択肢が1つの画面は向きのボタンだけ。
  *  選択はブラウザ標準の選択欄ではなく、ほかの選択と同じ下からのシートで選ぶ（v0.21.0） */
-export function SortControl({ scope, value, onChange }: { scope: SortScope; value: SortPref; onChange: (pref: SortPref) => void }) {
-  const options = SORT_OPTIONS[scope];
+export function SortControl({ scope, value, onChange, medium = null }: { scope: SortScope; value: SortPref; onChange: (pref: SortPref) => void; /** 種類の絞り込み（小説・マンガ・映像作品なら作者・完結/発売日も選べる） */ medium?: Medium | null }) {
+  const options = sortOptionsFor(scope, medium);
   const [open, setOpen] = useState(false);
   return (
     <div className="sort-control">

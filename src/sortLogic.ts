@@ -6,9 +6,9 @@
 //  - 日付の並び順は向きを切り替えられる。題名は五十音順だけ
 import { compareFuzzy } from "./expectLogic.js";
 import { compareAirSlot } from "./airSlot.js";
-import type { AirSlot, FuzzyDate, Log, Work } from "./types.js";
+import type { AirSlot, FuzzyDate, Log, Medium, Person, Work } from "./types.js";
 
-export type SortKey = "title" | "touched" | "logged" | "expect" | "airslot";
+export type SortKey = "title" | "touched" | "logged" | "expect" | "airslot" | "author" | "released";
 export type SortDir = "asc" | "desc";
 export interface SortPref {
   key: SortKey;
@@ -21,19 +21,25 @@ export const SORT_LABEL: Record<SortKey, string> = {
   logged: "記録日",
   expect: "楽しみの日",
   airslot: "放送枠",
+  author: "作者",
+  released: "完結・発売日",
 };
 
+/** 作者・完結/発売日の並び順を出す種類（小説・マンガ・映像作品。v1.0.0） */
+export const BOOK_SORT_KEYS: readonly SortKey[] = ["author", "released"];
+export const BOOK_SORT_MEDIA: readonly Medium[] = ["novel", "manga", "video"];
+
 /** 並び順を選び直したときの向き */
-export const DEFAULT_DIR: Record<SortKey, SortDir> = { title: "asc", touched: "desc", logged: "desc", expect: "asc", airslot: "asc" };
+export const DEFAULT_DIR: Record<SortKey, SortDir> = { title: "asc", touched: "desc", logged: "desc", expect: "asc", airslot: "asc", author: "asc", released: "asc" };
 
 /** 向きを切り替えられる並び順（題名は五十音順だけ、放送枠は月曜から日曜の順だけ） */
 export function hasDirection(key: SortKey): boolean {
-  return key !== "title" && key !== "airslot";
+  return key !== "title" && key !== "airslot" && key !== "author";
 }
 
 /** 向きの言葉 */
 export function dirLabel(key: SortKey, dir: SortDir): string {
-  if (key === "title") return "五十音順";
+  if (key === "title" || key === "author") return "五十音順";
   if (key === "airslot") return "月曜から";
   if (key === "expect") return dir === "asc" ? "近い順" : "遠い順";
   return dir === "desc" ? "新しい順" : "古い順";
@@ -54,17 +60,42 @@ export type SortScope =
 
 /** 画面ごとの選択肢。先頭が既定 */
 export const SORT_OPTIONS: Record<SortScope, readonly SortKey[]> = {
-  "continue-current": ["touched", "logged", "title"],
-  "continue-partway": ["title", "touched", "logged"],
-  "continue-planned": ["touched", "expect", "title"],
-  "purchase-planned": ["expect", "title", "touched"],
-  "purchase-reserved": ["expect", "title", "touched"],
-  "purchase-owned": ["touched", "title"],
+  "continue-current": ["touched", "logged", "title", "author", "released"],
+  "continue-partway": ["title", "touched", "logged", "author", "released"],
+  "continue-planned": ["touched", "expect", "title", "author", "released"],
+  "purchase-planned": ["expect", "title", "touched", "author", "released"],
+  "purchase-reserved": ["expect", "title", "touched", "author", "released"],
+  "purchase-owned": ["touched", "title", "author", "released"],
   relation: ["logged", "title"],
   records: ["logged"],
   "work-logs": ["logged"],
   cour: ["airslot", "title"],
 };
+
+/** その画面で選べる並び順。作者・完結/発売日は、種類を小説・マンガ・映像作品に絞ったときだけ（v1.0.0） */
+export function sortOptionsFor(scope: SortScope, medium: Medium | null): readonly SortKey[] {
+  const bookLike = medium !== null && BOOK_SORT_MEDIA.includes(medium);
+  return SORT_OPTIONS[scope].filter((k) => bookLike || !BOOK_SORT_KEYS.includes(k));
+}
+
+/** 記憶していた並び順が今の絞り込みで選べなければ、その画面の既定で並べる（記憶は変えない） */
+export function effectivePref(scope: SortScope, pref: SortPref, medium: Medium | null): SortPref {
+  return sortOptionsFor(scope, medium).includes(pref.key) ? pref : defaultSortPref(scope);
+}
+
+/** 並べ替え用の作者：最初の人物の読み仮名（無ければ名前） */
+export function authorKeyOf(w: Pick<Work, "personIds">, peopleById: ReadonlyMap<string, Pick<Person, "name" | "kana" | "deletedAt">>): string | null {
+  for (const id of w.personIds) {
+    const p = peopleById.get(id);
+    if (p && p.deletedAt === null) return (p.kana || p.name).normalize("NFKC");
+  }
+  return null;
+}
+
+/** 並べ替え用の完結・発売日：マンガは完結した日、ほか（小説・映像作品）は発売日（楽しみの日の項目） */
+export function releasedOf(w: Pick<Work, "medium" | "endDate" | "expect">): FuzzyDate | null {
+  return w.medium === "manga" ? w.endDate ?? null : w.expect;
+}
 
 export function defaultSortPref(scope: SortScope): SortPref {
   const key = SORT_OPTIONS[scope][0];
@@ -118,6 +149,10 @@ export interface SortSource<T> {
   logged?: (item: T) => string | null;
   /** 楽しみの日（無ければ null） */
   expect?: (item: T) => FuzzyDate | null;
+  /** 作者の並べ替え用の文字（無ければ null） */
+  author?: (item: T) => string | null;
+  /** 完結・発売日（無ければ null） */
+  released?: (item: T) => FuzzyDate | null;
 }
 
 /** 値の比べ方。無い値は向きに関係なく最後 */
@@ -146,16 +181,22 @@ export function sortItems<T>(items: readonly T[], pref: SortPref, src: SortSourc
         return compareNullable(src.expect?.(a) ?? null, src.expect?.(b) ?? null, compareFuzzy, pref.dir);
       case "airslot":
         return compareNullable<AirSlot>(src.work(a).airSlot, src.work(b).airSlot, compareAirSlot, "asc");
+      case "author":
+        return compareNullable(src.author?.(a) ?? null, src.author?.(b) ?? null, (x, y) => x.localeCompare(y, "ja"), "asc");
+      case "released":
+        return compareNullable(src.released?.(a) ?? null, src.released?.(b) ?? null, compareFuzzy, pref.dir);
     }
   };
   return [...items].sort((a, b) => primary(a, b) || byTitle(a, b));
 }
 
 /** 作品の一覧を並べ替える（記録日は lastLogged から、楽しみの日は expectOf から） */
-export function sortWorks(works: readonly Work[], pref: SortPref, ctx: { lastLogged?: Map<string, string>; expectOf?: (w: Work) => FuzzyDate | null }): Work[] {
+export function sortWorks(works: readonly Work[], pref: SortPref, ctx: { lastLogged?: Map<string, string>; expectOf?: (w: Work) => FuzzyDate | null; peopleById?: ReadonlyMap<string, Person> }): Work[] {
   return sortItems(works, pref, {
     work: (w) => w,
     logged: (w) => ctx.lastLogged?.get(w.id) ?? null,
     expect: (w) => ctx.expectOf?.(w) ?? null,
+    author: (w) => (ctx.peopleById ? authorKeyOf(w, ctx.peopleById) : null),
+    released: (w) => releasedOf(w),
   });
 }

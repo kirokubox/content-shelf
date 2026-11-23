@@ -107,7 +107,7 @@ function emptyReport(at: string, before: MigrationCounts): MigrationReport {
     partLabels: 0,
     rounds2plus: 0,
     workState: { upcoming: 0, ongoing: 0, finished: 0, unknown: 0 },
-    via: { broadcast: 0, rerun: 0, streaming: 0, disc: 0, recording: 0, venue: 0 },
+    via: { broadcast: 0, rerun: 0, streaming: 0, disc: 0, recording: 0, venue: 0, weekly: 0, own_book: 0, manga_cafe: 0, rental: 0 },
     purchase: { none: 0, planned: 0, reserved: 0, owned: 0 },
     access: { jump_plus: 0, streaming: 0 },
     manual: [],

@@ -11,7 +11,7 @@ import type { PrecisionChoice } from "./formParts";
 import { Icon } from "./Icon";
 import { addCurrentRerun, progressKindOf, withAutoStatus } from "./progressLogic";
 import { Screen, Stars } from "./Screen";
-import { airedFromAnilist, courOf, workStateOf } from "./anilist";
+import { airedFromAnilist, courOf, splitPartLabel, workStateOf } from "./anilist";
 import type { AnilistMedia } from "./anilist";
 import { AnilistResults } from "./AnilistPicker";
 import { personNames, resolveFranchise, resolvePeople } from "./linkLogic";
@@ -329,9 +329,15 @@ export function WorkEditor({ work, initialMedium, today, data, pick, media, onCa
     set({ coverPhotoId: null });
   };
   const applyPick = (m: AnilistMedia) => {
+    // 新しく登録するときは、検索のために打った文字ではなく AniList の題名にし、期・編を分けて入れる（v1.1.0）。
+    // 登録済みの作品をつなぎ直すときは、手で直した題名・期を変えない（空のときだけ入れる）
+    const split = splitPartLabel(m.title);
+    const isNew = !work;
+    if (m.authors.length > 0) setPeople((cur) => (cur.length > 0 ? cur : m.authors));
     setW((cur) => ({
       ...cur,
-      title: cur.title.trim() ? cur.title : m.title,
+      title: isNew || !cur.title.trim() ? split.title : cur.title,
+      partLabel: (isNew && split.part) || !cur.partLabel.trim() ? split.part || cur.partLabel : cur.partLabel,
       cours: courOf(m) && !cur.cours.some((c) => c.kind === "original") ? addCour(cur.cours, courOf(m)!) : cur.cours,
       workState: workStateOf(m, cur.workState),
       coverUrl: m.cover ?? cur.coverUrl,

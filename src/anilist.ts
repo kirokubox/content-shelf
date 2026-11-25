@@ -202,3 +202,23 @@ export function applyAnilist(work: Work, m: AnilistMedia, checkedAt: string): Wo
   }
   return next;
 }
+
+/**
+ * AniListの題名を「題名」と「期・編」に分ける（v1.1.0。本人 2026-11-25「題名やシーズンや期などを自動入力したい」「期を題名から分ける」）。
+ * 末尾の「第2期」「第二期」「第3シーズン」「Season 2」「2nd Season」「Part 2」「◯◯編」を期として外す。分けられなければ期は空。
+ */
+export function splitPartLabel(title: string): { title: string; part: string } {
+  const t = title.trim();
+  const patterns = [
+    /^(.+?)[\s　]*[（(]?(第[0-9０-９一二三四五六七八九十]+(?:期|シーズン|部|クール|章))[）)]?$/,
+    /^(.+?)[\s　]+((?:Season|SEASON|season)\s*[0-9]+)$/,
+    /^(.+?)[\s　]+([0-9]+(?:st|nd|rd|th)\s+(?:Season|SEASON|season))$/,
+    /^(.+?)[\s　]+((?:Part|PART|part)\s*[0-9]+)$/,
+    /^(.+?)[\s　]+(\S+編)$/,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(t);
+    if (m && m[1].trim()) return { title: m[1].trim(), part: m[2].trim() };
+  }
+  return { title: t, part: "" };
+}

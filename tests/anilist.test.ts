@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { airedFromAnilist, applyAnilist, mapMedia } from "../src/anilist.js";
+import { airedFromAnilist, applyAnilist, mapMedia, splitPartLabel } from "../src/anilist.js";
 import { withAutoStatus } from "../src/progressLogic.js";
 import { emptyWork } from "../src/workFactory.js";
 
@@ -45,4 +45,16 @@ test("完結が分かり、全話見ていれば記録へ移る（見ていな�
 test("形の崩れた応答は捨てる", () => {
   assert.equal(mapMedia({ id: "x" }), null);
   assert.equal(mapMedia({ id: 2, title: {} }), null);
+});
+
+test("AniListの題名を題名と期・編に分ける（v1.1.0）", () => {
+  assert.deepEqual(splitPartLabel("架空の物語 第2期"), { title: "架空の物語", part: "第2期" });
+  assert.deepEqual(splitPartLabel("架空の物語 第二期"), { title: "架空の物語", part: "第二期" });
+  assert.deepEqual(splitPartLabel("架空の物語（第3シーズン）"), { title: "架空の物語", part: "第3シーズン" });
+  assert.deepEqual(splitPartLabel("架空の物語 Season 2"), { title: "架空の物語", part: "Season 2" });
+  assert.deepEqual(splitPartLabel("架空の物語 2nd Season"), { title: "架空の物語", part: "2nd Season" });
+  assert.deepEqual(splitPartLabel("架空の物語 Part 2"), { title: "架空の物語", part: "Part 2" });
+  assert.deepEqual(splitPartLabel("架空の物語 港町編"), { title: "架空の物語", part: "港町編" });
+  assert.deepEqual(splitPartLabel("架空の物語"), { title: "架空の物語", part: "" });
+  assert.deepEqual(splitPartLabel("第2期"), { title: "第2期", part: "" });
 });

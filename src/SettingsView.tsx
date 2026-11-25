@@ -190,16 +190,106 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
     showToast("v0.16の形のデータを書き出しました");
   };
 
+  /** テキストの書き出しは別の画面（v1.2.0。前は設定の中に期間の切り替えごと出ていた） */
+  const [textPage, setTextPage] = useState(false);
   const works = data.works.filter((w) => w.deletedAt === null).length;
   const logs = data.logs.filter((l) => l.deletedAt === null).length;
+
+  if (textPage) {
+    return (
+      <Screen title="テキストで書き出す" onBack={() => setTextPage(false)}>
+      <section className="card">
+        <p className="muted small">振り返りやAIに渡すためのテキストです。週は月曜〜日曜です。</p>
+        <div className="segmented export-unit" role="tablist" aria-label="書き出す範囲">
+          {EXPORT_UNITS.map((u) => (
+            <button key={u.id} type="button" role="tab" aria-selected={u.id === exportUnit} className={`seg${u.id === exportUnit ? " on" : ""}`} onClick={() => { setExportUnit(u.id); setExportOffset(0); }}>
+              {u.label}
+            </button>
+          ))}
+        </div>
+        {range && (
+          <div className="export-period">
+            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "前の週" : "前の月"} onClick={() => setExportOffset(exportOffset - 1)}>
+              <Icon name="chevron-left" size={20} />
+            </button>
+            <span className="export-period-label">
+              <span>{exportUnit === "week" ? range.dates : range.title}</span>
+              <span className="muted small">{[offsetWord, `記録 ${rangeLogCount}件`].filter(Boolean).join("・")}</span>
+            </span>
+            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "次の週" : "次の月"} disabled={exportOffset >= 0} onClick={() => setExportOffset(exportOffset + 1)}>
+              <Icon name="chevron-right" size={20} />
+            </button>
+          </div>
+        )}
+        <div className="setting-list">
+          <button type="button" className="setting-row" onClick={exportText}>
+            <span className="setting-label">{range ? "この期間をテキストで書き出す" : "全記録をテキストで書き出す"}</span>
+            <Icon name="download" size={20} />
+          </button>
+        </div>
+      </section>
+      </Screen>
+    );
+  }
 
   return (
     <Screen title="設定" onBack={onBack}>
       <section className="card">
-        <h2>バックアップ</h2>
-        <p className="muted small">
-          データはこの端末のブラウザの中だけにあります（いま {works}作品・{logs}件の記録）。ときどき保存しておくと安心です。表紙や記録の写真があるときは、写真ごとZIPで保存します。文字だけのバックアップには写真の本体は入りません。
-        </p>
+        <h2>使う種類</h2>
+        <div className="chips">
+          {MEDIA.map((m) => {
+            const on = visibleMedia(enabledMedia).includes(m);
+            return (
+              <button key={m} type="button" className={`chip mini${on ? " on" : ""}`} aria-pressed={on} onClick={() => onToggleMedium(m)}>
+                {MEDIUM_LABEL[m]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="muted small">外した種類は、登録と絞り込みの候補に出なくなります。登録済みの作品は残ります。</p>
+      </section>
+      <section className="card">
+        <h2>作品の情報</h2>
+        <div className="setting-list">
+          <button
+            type="button"
+            className="setting-row"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onRefreshExternal();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "確かめられませんでした");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <span className="setting-label">AniListの情報をいま確かめる</span>
+          </button>
+          <button
+            type="button"
+            className="setting-row"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onFetchMangaInfo();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "取ってこられませんでした");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <span className="setting-label">マンガの作者と完結した日を入れる</span>
+          </button>
+        </div>
+        <p className="muted small">表紙・話数・完結は、開いたときに12時間ごとに自動で確かめます。作者と完結した日は、空のものだけ入れます。</p>
+      </section>
+      <section className="card">
+        <h2>データ</h2>
         <div className="setting-list">
           <button type="button" className="setting-row" disabled={busy} onClick={() => void saveBackup()}>
             <span className="setting-label">バックアップを保存</span>
@@ -210,15 +300,25 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
             <Icon name="upload" size={20} />
           </button>
           <button type="button" className="setting-row" onClick={() => pick("update")}>
-            <span className="setting-label">バックアップから更新（新しくなったものだけ上書き）</span>
+            <span className="setting-label">バックアップから更新</span>
             <Icon name="upload" size={20} />
           </button>
           <button type="button" className="setting-row" onClick={() => pick("restore")}>
-            <span className="setting-label">バックアップから戻す（いまのデータと入れ替え）</span>
+            <span className="setting-label">バックアップから戻す</span>
+            <Icon name="upload" size={20} />
+          </button>
+          <button type="button" className="setting-row" onClick={() => setTextPage(true)}>
+            <span className="setting-label">テキストで書き出す</span>
+            <Icon name="chevron-right" size={20} />
+          </button>
+          <button type="button" className="setting-row" onClick={() => pick("manga")}>
+            <span className="setting-label">マンガ棚から取り込む</span>
             <Icon name="upload" size={20} />
           </button>
         </div>
+        <p className="muted small">データはこの端末の中だけにあります（いま {works}作品・{logs}件の記録）。写真があるときは、写真ごと保存します。更新は新しくなったものだけ上書き、戻すは今のデータと入れ替えます。</p>
       </section>
+      {error && <p className="notice danger">{error}</p>}
       {(migReport || hasMigBackup || mig3Report || hasMig2Backup) && (
         <section className="card">
           <h2>データの形の移し替え</h2>
@@ -250,103 +350,6 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
         </section>
       )}
       <section className="card">
-        <h2>テキストで書き出す</h2>
-        <p className="muted small">好きなもの台帳やAIとの振り返りに渡すためのテキストです。週は月曜〜日曜です。</p>
-        <div className="segmented export-unit" role="tablist" aria-label="書き出す範囲">
-          {EXPORT_UNITS.map((u) => (
-            <button key={u.id} type="button" role="tab" aria-selected={u.id === exportUnit} className={`seg${u.id === exportUnit ? " on" : ""}`} onClick={() => { setExportUnit(u.id); setExportOffset(0); }}>
-              {u.label}
-            </button>
-          ))}
-        </div>
-        {range && (
-          <div className="export-period">
-            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "前の週" : "前の月"} onClick={() => setExportOffset(exportOffset - 1)}>
-              <Icon name="chevron-left" size={20} />
-            </button>
-            <span className="export-period-label">
-              <span>{range.title}</span>
-              <span className="muted small">{[range.dates, offsetWord, `記録 ${rangeLogCount}件`].filter(Boolean).join("・")}</span>
-            </span>
-            <button type="button" className="icon-btn" aria-label={exportUnit === "week" ? "次の週" : "次の月"} disabled={exportOffset >= 0} onClick={() => setExportOffset(exportOffset + 1)}>
-              <Icon name="chevron-right" size={20} />
-            </button>
-          </div>
-        )}
-        <div className="setting-list">
-          <button type="button" className="setting-row" onClick={exportText}>
-            <span className="setting-label">{range ? "この期間をテキストで書き出す" : "全記録をテキストで書き出す"}</span>
-            <Icon name="download" size={20} />
-          </button>
-        </div>
-      </section>
-      <section className="card">
-        <h2>作品の情報</h2>
-        <p className="muted small">AniListとつながったアニメ・マンガの表紙・全話数・完結・放送済みの話数は、アプリを開いたときに12時間ごとに確かめます。見た位置は変えません。</p>
-        <div className="setting-list">
-          <button
-            type="button"
-            className="setting-row"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onRefreshExternal();
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "確かめられませんでした");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <span className="setting-label">いま確かめる</span>
-          </button>
-          <button
-            type="button"
-            className="setting-row"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onFetchMangaInfo();
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "取ってこられませんでした");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <span className="setting-label">マンガの作者と完結した日を入れる</span>
-          </button>
-        </div>
-        <p className="muted small">作者が空のマンガと、完結しているのに完結した日が無いマンガだけ、AniListから入れます（並び順「作者」「完結・発売日」に使います）。入っている作者・日付は変えません。</p>
-      </section>
-      <section className="card">
-        <h2>ほかのアプリから</h2>
-        <div className="setting-list">
-          <button type="button" className="setting-row" onClick={() => pick("manga")}>
-            <span className="setting-label">マンガ棚のバックアップから取り込む</span>
-            <Icon name="upload" size={20} />
-          </button>
-        </div>
-        <p className="muted small">同じ作品は二度入りません。マンガ棚には読んだ日が無いので、記録は作らず「何巻まで読んだか」だけを移します。</p>
-      </section>
-      {error && <p className="notice danger">{error}</p>}
-      <section className="card">
-        <h2>使う種類</h2>
-        <div className="chips">
-          {MEDIA.map((m) => {
-            const on = visibleMedia(enabledMedia).includes(m);
-            return (
-              <button key={m} type="button" className={`chip mini${on ? " on" : ""}`} aria-pressed={on} onClick={() => onToggleMedium(m)}>
-                {MEDIUM_LABEL[m]}
-              </button>
-            );
-          })}
-        </div>
-        <p className="muted small">外した種類は、登録するときと種類で絞り込むときの候補に出なくなります。すでに登録した作品はそのまま残り、「すべて」では表示されます。最後の1つは外せません。この設定はこの端末だけのもので、バックアップには入りません。</p>
-      </section>
-      <section className="card">
         <h2>このアプリについて</h2>
         <dl className="rows">
           <div className="row">
@@ -354,8 +357,8 @@ export function SettingsView({ data, today, persisted, enabledMedia, onToggleMed
             <dd>{APP_VERSION}</dd>
           </div>
           <div className="row">
-            <dt>データの保護</dt>
-            <dd>{persisted === true ? "自動で消されにくい設定です" : persisted === false ? "ブラウザの判断で消されることがあります" : "確認できません"}</dd>
+            <dt>消えにくくする設定</dt>
+            <dd>{persisted === true ? "許可されています" : persisted === false ? "許可されていません" : "確認できません"}</dd>
           </div>
         </dl>
       </section>

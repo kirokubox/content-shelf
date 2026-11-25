@@ -2,7 +2,7 @@ import type { Access, DigitalStore, EventKind, LogVia, Medium, ProgressKind, Pur
 import { MANGA_LOG_VIAS, WATCH_LOG_VIAS } from "./types.js";
 
 /** 設定の「このアプリについて」に出す版。package.json の version とそろえる */
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.2.0";
 
 export const DB_NAME = "content-shelf";
 export const DB_VERSION = 4;
